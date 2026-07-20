@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Todo + Helpdesk - Admin Paneli</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header>
+    <div class="brand">Admin Paneli</div>
+    <nav>
+      <span id="whoami" class="muted"></span>
+      <button class="link" id="logoutBtn">Çıkış</button>
+    </nav>
+  </header>
+
+  <main>
+    <div class="tabs">
+      <button id="tabUsers" class="active">Kullanıcılar</button>
+      <button id="tabTodos">Tüm Todo'lar</button>
+      <button id="tabTickets">Helpdesk Talepleri</button>
+    </div>
+
+    <section id="panelUsers" class="card">
+      <h2>Kullanıcılar</h2>
+      <p id="usersError" class="error hidden"></p>
+      <table>
+        <thead><tr><th>ID</th><th>Kullanıcı adı</th><th>Rol</th><th>Kayıt tarihi</th><th>İşlemler</th></tr></thead>
+        <tbody id="usersList"></tbody>
+      </table>
+    </section>
+
+    <section id="panelTodos" class="card hidden">
+      <h2>Tüm Todo'lar</h2>
+      <p id="todosError" class="error hidden"></p>
+      <table>
+        <thead><tr><th>Sahibi</th><th>Başlık</th><th>Açıklama</th><th>Durum</th><th>İşlemler</th></tr></thead>
+        <tbody id="adminTodosList"></tbody>
+      </table>
+    </section>
+
+    <section id="panelTickets" class="card hidden">
+      <h2>Helpdesk Talepleri</h2>
+      <p id="ticketsError" class="error hidden"></p>
+      <table>
+        <thead><tr><th>Gönderen</th><th>Konu</th><th>Mesaj</th><th>Durum</th><th>Yanıt / Güncelle</th><th></th></tr></thead>
+        <tbody id="adminTicketsList"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>

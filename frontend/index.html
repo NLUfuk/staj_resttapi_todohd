@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Todo + Helpdesk - Giriş</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <main class="auth-box">
+    <div class="card">
+      <div class="tabs">
+        <button id="tabLogin" class="active">Giriş Yap</button>
+        <button id="tabRegister">Kayıt Ol</button>
+      </div>
+
+      <form id="loginForm">
+        <label for="loginUsername">Kullanıcı adı</label>
+        <input id="loginUsername" required autocomplete="username" />
+        <br /><br />
+        <label for="loginPassword">Şifre</label>
+        <input id="loginPassword" type="password" required autocomplete="current-password" />
+        <br /><br />
+        <button type="submit">Giriş Yap</button>
+      </form>
+
+      <form id="registerForm" class="hidden">
+        <label for="registerUsername">Kullanıcı adı (min 3 karakter)</label>
+        <input id="registerUsername" required minlength="3" />
+        <br /><br />
+        <label for="registerPassword">Şifre (min 6 karakter)</label>
+        <input id="registerPassword" type="password" required minlength="6" />
+        <br /><br />
+        <button type="submit">Kayıt Ol</button>
+      </form>
+
+      <p id="authError" class="error hidden"></p>
+      <p class="muted">Demo hesap: admin / admin123 (seed sonrası)</p>
+    </div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+</body>
+</html>

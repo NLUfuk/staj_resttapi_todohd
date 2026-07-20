@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Todo + Helpdesk - Panel</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header>
+    <div class="brand">Todo + Helpdesk</div>
+    <nav>
+      <span id="whoami" class="muted"></span>
+      <button class="link" id="logoutBtn">Çıkış</button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Todo'larım</h2>
+      <form id="todoForm" class="inline">
+        <input id="todoTitle" placeholder="Başlık" required />
+        <input id="todoDescription" placeholder="Açıklama (opsiyonel)" />
+        <button type="submit">Ekle</button>
+      </form>
+      <p id="todoError" class="error hidden"></p>
+      <table>
+        <thead>
+          <tr><th>Başlık</th><th>Açıklama</th><th>Durum</th><th>İşlemler</th></tr>
+        </thead>
+        <tbody id="todoList"></tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>Helpdesk Taleplerim</h2>
+      <form id="ticketForm" class="inline">
+        <input id="ticketSubject" placeholder="Konu" required />
+        <input id="ticketMessage" placeholder="Mesaj" required />
+        <select id="ticketTodoId">
+          <option value="">(Todo'ya bağlama)</option>
+        </select>
+        <button type="submit">Talep Gönder</button>
+      </form>
+      <p id="ticketError" class="error hidden"></p>
+      <table>
+        <thead>
+          <tr><th>Konu</th><th>Mesaj</th><th>Durum</th><th>Admin Yanıtı</th><th>İşlemler</th></tr>
+        </thead>
+        <tbody id="ticketList"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>
