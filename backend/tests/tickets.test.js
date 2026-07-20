@@ -1,5 +1,5 @@
 const request = require('supertest');
-const { app, resetDb, registerUser } = require('./helpers');
+const { app, resetDb, registerUser, getDepartmentId } = require('./helpers');
 
 beforeEach(resetDb);
 
@@ -22,7 +22,7 @@ describe('Tickets CRUD', () => {
     const res = await request(app)
       .post('/api/tickets')
       .set('Authorization', `Bearer ${token}`)
-      .send({ subject: 'Need help', message: 'My VPN is broken' });
+      .send({ subject: 'Need help', message: 'My VPN is broken', department_id: getDepartmentId() });
 
     expect(res.status).toBe(201);
     expect(res.body.status).toBe('open');
@@ -36,10 +36,16 @@ describe('Tickets CRUD', () => {
     const res = await request(app)
       .post('/api/tickets')
       .set('Authorization', `Bearer ${token}`)
-      .send({ subject: 'Printer issue', message: 'Jammed again', todo_id: todo.id });
+      .send({
+        subject: 'Printer issue',
+        message: 'Jammed again',
+        todo_id: todo.id,
+        department_id: getDepartmentId('donanim'),
+      });
 
     expect(res.status).toBe(201);
     expect(res.body.todo_id).toBe(todo.id);
+    expect(res.body.department_id).toBe(getDepartmentId('donanim'));
   });
 
   it('rejects linking to a todo owned by another user', async () => {
@@ -50,7 +56,12 @@ describe('Tickets CRUD', () => {
     const res = await request(app)
       .post('/api/tickets')
       .set('Authorization', `Bearer ${userB.token}`)
-      .send({ subject: 'sneaky', message: 'trying to link others todo', todo_id: todoA.id });
+      .send({
+        subject: 'sneaky',
+        message: 'trying to link others todo',
+        todo_id: todoA.id,
+        department_id: getDepartmentId(),
+      });
 
     expect(res.status).toBe(400);
   });
@@ -64,13 +75,31 @@ describe('Tickets CRUD', () => {
     expect(res.status).toBe(400);
   });
 
+  it('rejects a ticket without a department_id', async () => {
+    const { token } = await registerUser('ticketuser3b');
+    const res = await request(app)
+      .post('/api/tickets')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ subject: 'no department', message: 'oops' });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a ticket with an unknown department_id', async () => {
+    const { token } = await registerUser('ticketuser3c');
+    const res = await request(app)
+      .post('/api/tickets')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ subject: 'bad dept', message: 'oops', department_id: 999999 });
+    expect(res.status).toBe(400);
+  });
+
   it('lets the reporter edit an open ticket but not a closed one', async () => {
     const { token } = await registerUser('ticketuser4');
     const auth = { Authorization: `Bearer ${token}` };
     const create = await request(app)
       .post('/api/tickets')
       .set(auth)
-      .send({ subject: 'orig subject', message: 'orig message' });
+      .send({ subject: 'orig subject', message: 'orig message', department_id: getDepartmentId() });
     const ticketId = create.body.id;
 
     const edit = await request(app)
@@ -87,7 +116,7 @@ describe('Tickets CRUD', () => {
     const create = await request(app)
       .post('/api/tickets')
       .set('Authorization', `Bearer ${userA.token}`)
-      .send({ subject: 'private', message: 'private message' });
+      .send({ subject: 'private', message: 'private message', department_id: getDepartmentId() });
 
     const readAsB = await request(app)
       .get(`/api/tickets/${create.body.id}`)
@@ -101,7 +130,7 @@ describe('Tickets CRUD', () => {
     const create = await request(app)
       .post('/api/tickets')
       .set(auth)
-      .send({ subject: 's', message: 'm' });
+      .send({ subject: 's', message: 'm', department_id: getDepartmentId() });
 
     const del = await request(app).delete(`/api/tickets/${create.body.id}`).set(auth);
     expect(del.status).toBe(204);

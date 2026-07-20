@@ -8,20 +8,27 @@ db.exec(
 );
 
 const insertUser = db.prepare(
-  'INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)'
+  'INSERT INTO users (username, password_hash, role, department_id) VALUES (?, ?, ?, ?)'
 );
 const insertTodo = db.prepare(
   'INSERT INTO todos (user_id, title, description, status) VALUES (?, ?, ?, ?)'
 );
 const insertTicket = db.prepare(
-  'INSERT INTO tickets (user_id, todo_id, subject, message, status, admin_response) VALUES (?, ?, ?, ?, ?, ?)'
+  `INSERT INTO tickets (user_id, todo_id, department_id, subject, message, status, admin_response)
+   VALUES (?, ?, ?, ?, ?, ?, ?)`
 );
+
+const departmentIdBySlug = (slug) =>
+  db.prepare('SELECT id FROM departments WHERE slug = ?').get(slug).id;
+const genelId = departmentIdBySlug('genel');
+const donanimId = departmentIdBySlug('donanim');
+const muhasebeId = departmentIdBySlug('muhasebe');
 
 const hash = (pw) => bcrypt.hashSync(pw, 10);
 
-const adminId = insertUser.run('admin', hash('admin123'), 'admin').lastInsertRowid;
-const aliceId = insertUser.run('alice', hash('alice123'), 'user').lastInsertRowid;
-const bobId = insertUser.run('bob', hash('bob123'), 'user').lastInsertRowid;
+const adminId = insertUser.run('admin', hash('admin123'), 'admin', genelId).lastInsertRowid;
+const aliceId = insertUser.run('alice', hash('alice123'), 'user', donanimId).lastInsertRowid;
+const bobId = insertUser.run('bob', hash('bob123'), 'user', muhasebeId).lastInsertRowid;
 
 const aliceTodo1 = insertTodo.run(
   aliceId,
@@ -42,6 +49,7 @@ insertTodo.run(bobId, 'Renew software license', 'Design suite license expires en
 insertTicket.run(
   aliceId,
   aliceTodo2,
+  donanimId,
   'Printer stuck in paper jam loop',
   'Tried reseating the tray, still shows a jam error. Can IT take a look?',
   'open',
@@ -51,6 +59,7 @@ insertTicket.run(
 insertTicket.run(
   aliceId,
   null,
+  donanimId,
   'VPN access request',
   'I need VPN access for remote work starting next week.',
   'closed',
@@ -60,6 +69,7 @@ insertTicket.run(
 insertTicket.run(
   bobId,
   null,
+  muhasebeId,
   'License renewal blocked by finance',
   'Finance has not approved the PO yet, can someone follow up?',
   'in_progress',

@@ -1,5 +1,5 @@
 const request = require('supertest');
-const { app, resetDb, registerUser, makeAdmin } = require('./helpers');
+const { app, resetDb, registerUser, makeAdmin, getDepartmentId } = require('./helpers');
 
 beforeEach(resetDb);
 
@@ -113,7 +113,7 @@ describe('Admin: helpdesk ticket handling', () => {
     await request(app)
       .post('/api/tickets')
       .set('Authorization', `Bearer ${user.token}`)
-      .send({ subject: 'help', message: 'please help' });
+      .send({ subject: 'help', message: 'please help', department_id: getDepartmentId() });
 
     const res = await request(app)
       .get('/api/admin/tickets')
@@ -129,7 +129,7 @@ describe('Admin: helpdesk ticket handling', () => {
     const created = await request(app)
       .post('/api/tickets')
       .set('Authorization', `Bearer ${user.token}`)
-      .send({ subject: 'help', message: 'please help' });
+      .send({ subject: 'help', message: 'please help', department_id: getDepartmentId() });
 
     const patch = await request(app)
       .patch(`/api/admin/tickets/${created.body.id}`)
@@ -153,7 +153,7 @@ describe('Admin: helpdesk ticket handling', () => {
     const created = await request(app)
       .post('/api/tickets')
       .set('Authorization', `Bearer ${user.token}`)
-      .send({ subject: 'help', message: 'please help' });
+      .send({ subject: 'help', message: 'please help', department_id: getDepartmentId() });
 
     const res = await request(app)
       .patch(`/api/admin/tickets/${created.body.id}`)
