@@ -1,11 +1,17 @@
-// Single send({ to, subject, html }) interface with three drivers:
+// Single send({ to, subject, html }) interface with four drivers:
 // - console (default/dev): prints the email to stdout, nothing external.
 // - resend: posts to the Resend API. Requires RESEND_API_KEY. Free tier is
 //   sandboxed to the account owner's own email until a domain is verified
 //   (resend.com/domains) - fine for solo testing, not for real recipients.
-// - gmail: SMTP via nodemailer using a Gmail account + App Password. No
-//   domain verification needed (Gmail's own domain is already trusted), so
-//   this is the pragmatic choice when the sender has no custom domain.
+// - gmail: SMTP via nodemailer using a Gmail account + App Password. Works
+//   locally, but many free PaaS hosts (confirmed on Render's free tier)
+//   block outbound SMTP on both 465 and 587 entirely - connections just
+//   time out, no amount of port/TLS tweaking fixes it.
+// - sendgrid: posts to the SendGrid Web API (HTTPS, not SMTP - not affected
+//   by the platform SMTP block above). Requires SENDGRID_API_KEY and a
+//   Single Sender Verification (a verified individual email, no domain
+//   needed - see app.sendgrid.com/settings/sender_auth/senders) matching
+//   SENDGRID_FROM.
 // Selected via MAIL_DRIVER env var so prod config is a one-line env change,
 // no code change.
 
@@ -16,6 +22,8 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const RESEND_FROM = process.env.RESEND_FROM || 'onboarding@resend.dev';
 const GMAIL_USER = process.env.GMAIL_USER;
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
+const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
+const SENDGRID_FROM = process.env.SENDGRID_FROM;
 
 // Test-only record of sent mail. Verification tokens must never be returned
 // in an API response (see auth.routes.js) - this is how tests reach the link
@@ -75,6 +83,29 @@ async function sendViaGmail({ to, subject, html }) {
   }
 }
 
+async function sendViaSendgrid({ to, subject, html }) {
+  if (!SENDGRID_API_KEY || !SENDGRID_FROM) {
+    console.error('[mailer] MAIL_DRIVER=sendgrid but SENDGRID_API_KEY/SENDGRID_FROM is not set - email not sent');
+    return;
+  }
+  const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${SENDGRID_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      personalizations: [{ to: [{ email: to }] }],
+      from: { email: SENDGRID_FROM },
+      subject,
+      content: [{ type: 'text/html', value: html }],
+    }),
+  });
+  if (!res.ok) {
+    console.error('[mailer] SendGrid API error', res.status, await res.text().catch(() => ''));
+  }
+}
+
 async function send({ to, subject, html }) {
   if (process.env.NODE_ENV === 'test') {
     // Tests read the outbox directly instead of stdout - skip printing so
@@ -89,6 +120,10 @@ async function send({ to, subject, html }) {
   }
   if (driver === 'gmail') {
     await sendViaGmail({ to, subject, html });
+    return;
+  }
+  if (driver === 'sendgrid') {
+    await sendViaSendgrid({ to, subject, html });
     return;
   }
 
