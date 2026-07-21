@@ -28,11 +28,21 @@
         <label for="registerUsername">Kullanıcı adı (min 3 karakter)</label>
         <input id="registerUsername" required minlength="3" />
         <br /><br />
+        <label for="registerEmail">E-posta</label>
+        <input id="registerEmail" type="email" required />
+        <br /><br />
         <label for="registerPassword">Şifre (min 6 karakter)</label>
         <input id="registerPassword" type="password" required minlength="6" />
         <br /><br />
         <button type="submit">Kayıt Ol</button>
       </form>
+
+      <div id="verifyNotice" class="hidden">
+        <p>Kaydınız alındı. <strong id="verifyEmailLabel"></strong> adresine bir onay linki gönderdik.</p>
+        <p class="muted">Onaylamadan giriş yapamazsınız. Maili bulamıyor musunuz?</p>
+        <button type="button" id="resendBtn" class="secondary">Onay mailini tekrar gönder</button>
+        <p id="resendMsg" class="muted hidden"></p>
+      </div>
 
       <p id="authError" class="error hidden"></p>
       <p class="muted">Demo hesap: admin / admin123 (seed sonrası)</p>

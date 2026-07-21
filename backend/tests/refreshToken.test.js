@@ -4,40 +4,22 @@ const { app, resetDb, registerUser } = require('./helpers');
 beforeEach(resetDb);
 
 describe('Refresh token issuance', () => {
-  it('returns a refreshToken alongside the access token on register', async () => {
-    const res = await request(app)
-      .post('/api/auth/register')
-      .send({ username: 'refreshuser1', password: 'password123' });
-    expect(res.status).toBe(201);
-    expect(typeof res.body.refreshToken).toBe('string');
-    expect(res.body.refreshToken.length).toBeGreaterThan(20);
-  });
-
   it('returns a refreshToken alongside the access token on login', async () => {
-    await request(app)
-      .post('/api/auth/register')
-      .send({ username: 'refreshuser2', password: 'password123' });
-    const res = await request(app)
-      .post('/api/auth/login')
-      .send({ username: 'refreshuser2', password: 'password123' });
-    expect(res.status).toBe(200);
-    expect(typeof res.body.refreshToken).toBe('string');
+    const { refreshToken } = await registerUser('refreshuser2');
+    expect(typeof refreshToken).toBe('string');
+    expect(refreshToken.length).toBeGreaterThan(20);
   });
 });
 
 describe('POST /api/auth/refresh', () => {
   it('exchanges a valid refresh token for a new access token', async () => {
-    const registerRes = await request(app)
-      .post('/api/auth/register')
-      .send({ username: 'refreshuser3', password: 'password123' });
+    const { refreshToken } = await registerUser('refreshuser3');
 
-    const res = await request(app)
-      .post('/api/auth/refresh')
-      .send({ refreshToken: registerRes.body.refreshToken });
+    const res = await request(app).post('/api/auth/refresh').send({ refreshToken });
     expect(res.status).toBe(200);
     expect(res.body.token).toBeDefined();
     expect(res.body.refreshToken).toBeDefined();
-    expect(res.body.refreshToken).not.toBe(registerRes.body.refreshToken);
+    expect(res.body.refreshToken).not.toBe(refreshToken);
 
     const meRes = await request(app)
       .get('/api/auth/me')
@@ -46,17 +28,11 @@ describe('POST /api/auth/refresh', () => {
   });
 
   it('rotates the token: the old refresh token can no longer be used', async () => {
-    const registerRes = await request(app)
-      .post('/api/auth/register')
-      .send({ username: 'refreshuser4', password: 'password123' });
+    const { refreshToken } = await registerUser('refreshuser4');
 
-    await request(app)
-      .post('/api/auth/refresh')
-      .send({ refreshToken: registerRes.body.refreshToken });
+    await request(app).post('/api/auth/refresh').send({ refreshToken });
 
-    const reuse = await request(app)
-      .post('/api/auth/refresh')
-      .send({ refreshToken: registerRes.body.refreshToken });
+    const reuse = await request(app).post('/api/auth/refresh').send({ refreshToken });
     expect(reuse.status).toBe(401);
   });
 
@@ -75,18 +51,12 @@ describe('POST /api/auth/refresh', () => {
 
 describe('POST /api/auth/logout', () => {
   it('revokes the refresh token so it can no longer be used', async () => {
-    const registerRes = await request(app)
-      .post('/api/auth/register')
-      .send({ username: 'refreshuser5', password: 'password123' });
+    const { refreshToken } = await registerUser('refreshuser5');
 
-    const logout = await request(app)
-      .post('/api/auth/logout')
-      .send({ refreshToken: registerRes.body.refreshToken });
+    const logout = await request(app).post('/api/auth/logout').send({ refreshToken });
     expect(logout.status).toBe(204);
 
-    const refreshAttempt = await request(app)
-      .post('/api/auth/refresh')
-      .send({ refreshToken: registerRes.body.refreshToken });
+    const refreshAttempt = await request(app).post('/api/auth/refresh').send({ refreshToken });
     expect(refreshAttempt.status).toBe(401);
   });
 

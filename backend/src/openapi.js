@@ -71,7 +71,50 @@ const userSchema = {
     username: { type: 'string', example: 'alice' },
     role: { type: 'string', enum: ['user', 'dept_lead', 'admin'], example: 'user' },
     department_id: { type: 'integer', nullable: true, example: 1 },
+    email: { type: 'string', nullable: true, example: 'alice@example.com', description: 'Eski (migration öncesi) kullanıcılarda NULL olabilir' },
+    is_verified: { type: 'integer', enum: [0, 1], example: 1, description: 'E-posta onaylandı mı (0/1) - eski kullanıcılar otomatik 1' },
     created_at: { type: 'string', example: '2026-07-20 06:49:59' },
+  },
+};
+
+const todoListSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'integer', example: 1 },
+    owner_id: { type: 'integer', example: 2 },
+    name: { type: 'string', example: 'Elektrik' },
+    created_at: { type: 'string' },
+  },
+};
+
+const assignmentSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'integer', example: 1 },
+    todo_id: { type: 'integer', example: 5 },
+    assigner_id: { type: 'integer', example: 2 },
+    assignee_id: { type: 'integer', example: 3 },
+    status: { type: 'string', enum: ['pending', 'accepted', 'completed', 'rejected', 'revision', 'cancelled'], example: 'pending' },
+    todo_title: { type: 'string', example: 'Kablo al', description: 'Sadece /incoming, /outgoing yanıtlarında (join ile)' },
+    assigner_username: { type: 'string', example: 'alice', description: 'Sadece /incoming, /outgoing yanıtlarında' },
+    assignee_username: { type: 'string', example: 'bob', description: 'Sadece /incoming, /outgoing yanıtlarında' },
+    created_at: { type: 'string' },
+    updated_at: { type: 'string' },
+  },
+};
+
+const assignmentEventSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'integer', example: 1 },
+    assignment_id: { type: 'integer', example: 1 },
+    actor_id: { type: 'integer', example: 2 },
+    actor_username: { type: 'string', example: 'alice' },
+    action: { type: 'string', enum: ['assign', 'accept', 'reject', 'revise', 'resend', 'complete', 'cancel'], example: 'assign' },
+    from_status: { type: 'string', nullable: true, example: null },
+    to_status: { type: 'string', example: 'pending' },
+    comment: { type: 'string', nullable: true, example: null },
+    created_at: { type: 'string' },
   },
 };
 
@@ -119,6 +162,7 @@ const todoSchema = {
     status: { type: 'string', enum: ['pending', 'done'], example: 'pending' },
     due_date: { type: 'string', nullable: true, example: '2026-08-01' },
     priority: { type: 'string', enum: ['low', 'medium', 'high'], example: 'medium' },
+    list_id: { type: 'integer', nullable: true, example: 1, description: 'Verilmezse kullanıcının "Genel" listesine düşer' },
     created_at: { type: 'string' },
     updated_at: { type: 'string' },
   },
@@ -230,14 +274,19 @@ module.exports = {
       AdminTicket: adminTicketSchema,
       TicketComment: ticketCommentSchema,
       AuthResponse: authResponseSchema,
+      TodoList: todoListSchema,
+      Assignment: assignmentSchema,
+      AssignmentEvent: assignmentEventSchema,
       Error: errorSchema,
     },
   },
   tags: [
-    { name: 'Auth', description: 'Kayıt, giriş, oturum bilgisi' },
+    { name: 'Auth', description: 'Kayıt, giriş, e-posta onayı, oturum bilgisi' },
     { name: 'Departments', description: 'Departman listesi ve yönetimi' },
     { name: 'Channels', description: 'Şirket chat\'i - departman kanalları ve mesajlar' },
     { name: 'Notifications', description: 'Bildirimler' },
+    { name: 'Lists', description: 'Çoklu todo listesi (US-1)' },
+    { name: 'Assignments', description: 'Görev atama, kabul/red/revize/tamamla akışı ve zaman çizelgesi (US-2..7)' },
     { name: 'Admin - Audit Log', description: 'Yazma-kritik işlemlerin denetim kaydı (admin)' },
     { name: 'Admin - Stats', description: 'Departman/kullanıcı/mesaj istatistikleri (admin)' },
     { name: 'Todos', description: 'Kendi todo\'ların (CRUD)' },
@@ -257,16 +306,17 @@ module.exports = {
     '/api/auth/register': {
       post: {
         tags: ['Auth'],
-        summary: 'Kayıt ol (role=user olarak oluşturulur)',
+        summary: 'Kayıt ol (role=user, is_verified=0 olarak oluşturulur - onay maili gönderilir, token dönmez)',
         requestBody: {
           required: true,
           content: {
             'application/json': {
               schema: {
                 type: 'object',
-                required: ['username', 'password'],
+                required: ['username', 'email', 'password'],
                 properties: {
                   username: { type: 'string', minLength: 3, example: 'newuser' },
+                  email: { type: 'string', example: 'newuser@example.com' },
                   password: { type: 'string', minLength: 6, example: 'password123' },
                 },
               },
@@ -274,9 +324,47 @@ module.exports = {
           },
         },
         responses: {
-          201: { description: 'Kullanıcı oluşturuldu', content: { 'application/json': { schema: authResponseSchema } } },
+          201: {
+            description: 'Kayıt alındı, onay maili gönderildi (bkz. GET /api/auth/verify)',
+            content: { 'application/json': { schema: { type: 'object', properties: { message: { type: 'string' } } } } },
+          },
           400: badRequest,
-          409: { description: 'Kullanıcı adı zaten alınmış', content: { 'application/json': { schema: errorSchema } } },
+          409: { description: 'Kullanıcı adı veya e-posta zaten alınmış', content: { 'application/json': { schema: errorSchema } } },
+        },
+      },
+    },
+    '/api/auth/verify': {
+      get: {
+        tags: ['Auth'],
+        summary: 'E-posta doğrulama linkini işle (?token=...)',
+        parameters: [{ name: 'token', in: 'query', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: {
+            description: 'E-posta onaylandı',
+            content: { 'application/json': { schema: { type: 'object', properties: { message: { type: 'string' } } } } },
+          },
+          400: { description: 'Token eksik, geçersiz, süresi dolmuş veya zaten kullanılmış', content: { 'application/json': { schema: errorSchema } } },
+        },
+      },
+    },
+    '/api/auth/resend-verification': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Onay mailini tekrar gönder (hesabın var olup olmadığını sızdırmaz - her zaman aynı genel yanıtı döner)',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { type: 'object', required: ['email'], properties: { email: { type: 'string' } } },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: 'Genel yanıt (hesap zaten onaylıysa veya yoksa da aynı mesaj döner)',
+            content: { 'application/json': { schema: { type: 'object', properties: { message: { type: 'string' } } } } },
+          },
+          400: badRequest,
         },
       },
     },
@@ -299,6 +387,7 @@ module.exports = {
         responses: {
           200: { description: 'Giriş başarılı', content: { 'application/json': { schema: authResponseSchema } } },
           401: { description: 'Kullanıcı adı veya şifre hatalı', content: { 'application/json': { schema: errorSchema } } },
+          403: { description: 'E-posta onaylanmamış', content: { 'application/json': { schema: errorSchema } } },
         },
       },
     },
@@ -528,6 +617,257 @@ module.exports = {
         },
       },
     },
+    '/api/lists': {
+      get: {
+        tags: ['Lists'],
+        summary: 'Kendi listelerimi listele (sayfalı)',
+        security: [{ bearerAuth: [] }],
+        parameters: paginationParams,
+        responses: {
+          200: {
+            description: 'OK. X-Total-Count ve Link header içerir.',
+            headers: { 'X-Total-Count': { schema: { type: 'integer' } }, Link: { schema: { type: 'string' } } },
+            content: { 'application/json': { schema: { type: 'array', items: todoListSchema } } },
+          },
+          401: unauthorized,
+        },
+      },
+      post: {
+        tags: ['Lists'],
+        summary: 'Yeni liste oluştur',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { type: 'object', required: ['name'], properties: { name: { type: 'string', example: 'Elektrik' } } },
+            },
+          },
+        },
+        responses: {
+          201: { description: 'Oluşturuldu', content: { 'application/json': { schema: todoListSchema } } },
+          400: badRequest,
+          401: unauthorized,
+        },
+      },
+    },
+    '/api/lists/{id}': {
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+      get: {
+        tags: ['Lists'],
+        summary: 'Tekil liste getir',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: { description: 'OK', content: { 'application/json': { schema: todoListSchema } } },
+          401: unauthorized,
+          404: notFound,
+        },
+      },
+      patch: {
+        tags: ['Lists'],
+        summary: 'Listeyi yeniden adlandır',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { type: 'object', required: ['name'], properties: { name: { type: 'string' } } },
+            },
+          },
+        },
+        responses: {
+          200: { description: 'Güncellendi', content: { 'application/json': { schema: todoListSchema } } },
+          400: badRequest,
+          401: unauthorized,
+          404: notFound,
+        },
+      },
+      delete: {
+        tags: ['Lists'],
+        summary: 'Listeyi sil (altındaki todo\'lar cascade silinir)',
+        security: [{ bearerAuth: [] }],
+        responses: { 204: { description: 'Silindi' }, 401: unauthorized, 404: notFound },
+      },
+    },
+    '/api/lists/{id}/items': {
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+      get: {
+        tags: ['Lists'],
+        summary: 'Listenin todo\'larını listele (sayfalı)',
+        security: [{ bearerAuth: [] }],
+        parameters: paginationParams,
+        responses: {
+          200: {
+            description: 'OK. X-Total-Count ve Link header içerir.',
+            headers: { 'X-Total-Count': { schema: { type: 'integer' } }, Link: { schema: { type: 'string' } } },
+            content: { 'application/json': { schema: { type: 'array', items: todoSchema } } },
+          },
+          401: unauthorized,
+          404: notFound,
+        },
+      },
+    },
+    '/api/assignments/incoming': {
+      get: {
+        tags: ['Assignments'],
+        summary: 'Bana atanan görevler (sayfalı, opsiyonel ?status= filtresi)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          ...paginationParams,
+          { name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['pending', 'accepted', 'completed', 'rejected', 'revision', 'cancelled'] } },
+        ],
+        responses: {
+          200: {
+            description: 'OK. X-Total-Count ve Link header içerir.',
+            headers: { 'X-Total-Count': { schema: { type: 'integer' } }, Link: { schema: { type: 'string' } } },
+            content: { 'application/json': { schema: { type: 'array', items: assignmentSchema } } },
+          },
+          400: badRequest,
+          401: unauthorized,
+        },
+      },
+    },
+    '/api/assignments/outgoing': {
+      get: {
+        tags: ['Assignments'],
+        summary: 'Benim atadığım görevler (sayfalı, opsiyonel ?status= filtresi)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          ...paginationParams,
+          { name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['pending', 'accepted', 'completed', 'rejected', 'revision', 'cancelled'] } },
+        ],
+        responses: {
+          200: {
+            description: 'OK. X-Total-Count ve Link header içerir.',
+            headers: { 'X-Total-Count': { schema: { type: 'integer' } }, Link: { schema: { type: 'string' } } },
+            content: { 'application/json': { schema: { type: 'array', items: assignmentSchema } } },
+          },
+          400: badRequest,
+          401: unauthorized,
+        },
+      },
+    },
+    '/api/assignments/{id}/timeline': {
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+      get: {
+        tags: ['Assignments'],
+        summary: 'Atamanın tüm geçmişi (kronolojik) - yalnızca assigner/assignee erişebilir',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: { description: 'OK', content: { 'application/json': { schema: { type: 'array', items: assignmentEventSchema } } } },
+          401: unauthorized,
+          404: { description: 'Atama bulunamadı (veya taraf değilsiniz)', content: { 'application/json': { schema: errorSchema } } },
+        },
+      },
+    },
+    '/api/assignments/{id}/accept': {
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+      post: {
+        tags: ['Assignments'],
+        summary: 'Atamayı kabul et (assignee, pending -> accepted)',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: { description: 'Güncellendi', content: { 'application/json': { schema: assignmentSchema } } },
+          401: unauthorized,
+          403: { description: 'assignee değilsiniz', content: { 'application/json': { schema: errorSchema } } },
+          404: notFound,
+          409: { description: 'Geçersiz durum geçişi', content: { 'application/json': { schema: errorSchema } } },
+        },
+      },
+    },
+    '/api/assignments/{id}/reject': {
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+      post: {
+        tags: ['Assignments'],
+        summary: 'Atamayı reddet (assignee, pending -> rejected, comment zorunlu)',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { type: 'object', required: ['comment'], properties: { comment: { type: 'string' } } },
+            },
+          },
+        },
+        responses: {
+          200: { description: 'Güncellendi', content: { 'application/json': { schema: assignmentSchema } } },
+          400: { description: 'comment zorunlu', content: { 'application/json': { schema: errorSchema } } },
+          401: unauthorized,
+          403: { description: 'assignee değilsiniz', content: { 'application/json': { schema: errorSchema } } },
+          404: notFound,
+          409: { description: 'Geçersiz durum geçişi', content: { 'application/json': { schema: errorSchema } } },
+        },
+      },
+    },
+    '/api/assignments/{id}/revise': {
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+      post: {
+        tags: ['Assignments'],
+        summary: 'Revizyon iste (assignee, pending -> revision, comment zorunlu)',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { type: 'object', required: ['comment'], properties: { comment: { type: 'string' } } },
+            },
+          },
+        },
+        responses: {
+          200: { description: 'Güncellendi', content: { 'application/json': { schema: assignmentSchema } } },
+          400: { description: 'comment zorunlu', content: { 'application/json': { schema: errorSchema } } },
+          401: unauthorized,
+          403: { description: 'assignee değilsiniz', content: { 'application/json': { schema: errorSchema } } },
+          404: notFound,
+          409: { description: 'Geçersiz durum geçişi', content: { 'application/json': { schema: errorSchema } } },
+        },
+      },
+    },
+    '/api/assignments/{id}/resend': {
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+      post: {
+        tags: ['Assignments'],
+        summary: 'Revize edilen görevi tekrar gönder (assigner, revision -> pending)',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: { description: 'Güncellendi', content: { 'application/json': { schema: assignmentSchema } } },
+          401: unauthorized,
+          403: { description: 'assigner değilsiniz', content: { 'application/json': { schema: errorSchema } } },
+          404: notFound,
+          409: { description: 'Geçersiz durum geçişi', content: { 'application/json': { schema: errorSchema } } },
+        },
+      },
+    },
+    '/api/assignments/{id}/complete': {
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+      post: {
+        tags: ['Assignments'],
+        summary: 'Görevi tamamlandı işaretle (assignee, accepted -> completed)',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: { description: 'Güncellendi', content: { 'application/json': { schema: assignmentSchema } } },
+          401: unauthorized,
+          403: { description: 'assignee değilsiniz', content: { 'application/json': { schema: errorSchema } } },
+          404: notFound,
+          409: { description: 'Geçersiz durum geçişi', content: { 'application/json': { schema: errorSchema } } },
+        },
+      },
+    },
+    '/api/assignments/{id}/cancel': {
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+      post: {
+        tags: ['Assignments'],
+        summary: 'Atamayı iptal et (assigner, pending/revision/accepted -> cancelled)',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: { description: 'Güncellendi', content: { 'application/json': { schema: assignmentSchema } } },
+          401: unauthorized,
+          403: { description: 'assigner değilsiniz', content: { 'application/json': { schema: errorSchema } } },
+          404: notFound,
+          409: { description: 'Geçersiz durum geçişi', content: { 'application/json': { schema: errorSchema } } },
+        },
+      },
+    },
     '/api/todos': {
       get: {
         tags: ['Todos'],
@@ -569,6 +909,7 @@ module.exports = {
                   description: { type: 'string', nullable: true },
                   due_date: { type: 'string', nullable: true, example: '2026-08-01' },
                   priority: { type: 'string', enum: ['low', 'medium', 'high'], default: 'medium' },
+                  list_id: { type: 'integer', nullable: true, description: 'Verilmezse "Genel" listesine düşer; başkasının listesiyse 404' },
                 },
               },
             },
@@ -578,6 +919,36 @@ module.exports = {
           201: { description: 'Oluşturuldu', content: { 'application/json': { schema: todoSchema } } },
           400: badRequest,
           401: unauthorized,
+          404: notFound,
+        },
+      },
+    },
+    '/api/todos/{id}/assign': {
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+      post: {
+        tags: ['Assignments'],
+        summary: 'Todo\'yu başka bir kullanıcıya ata (sadece todo sahibi; kendine atama 400)',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  assignee_username: { type: 'string', example: 'bob' },
+                  assignee_id: { type: 'integer', example: 3 },
+                },
+                description: 'assignee_username veya assignee_id - biri zorunlu',
+              },
+            },
+          },
+        },
+        responses: {
+          201: { description: 'Atama oluşturuldu (status=pending)', content: { 'application/json': { schema: assignmentSchema } } },
+          400: { description: 'assignee eksik veya kendine atama', content: { 'application/json': { schema: errorSchema } } },
+          401: unauthorized,
+          404: { description: 'Todo veya assignee bulunamadı', content: { 'application/json': { schema: errorSchema } } },
         },
       },
     },

@@ -116,3 +116,13 @@ th { color: #6b7280; font-weight: 600; font-size: 0.8rem; text-transform: upperc
 
 .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .row-actions form { display: flex; gap: 6px; align-items: center; }
+
+.badge.accepted, .badge.completed { background: #d1fae5; color: #065f46; }
+.badge.rejected, .badge.cancelled { background: #fee2e2; color: #991b1b; }
+.badge.revision { background: #fef3c7; color: #92400e; }
+
+.timeline-row td { background: #f9fafb; padding: 10px 14px; }
+.timeline { list-style: none; margin: 0; padding: 0; font-size: 0.85rem; }
+.timeline li { padding: 6px 0; border-bottom: 1px dashed #e5e7eb; }
+.timeline li:last-child { border-bottom: none; }
+.timeline .tl-meta { color: #6b7280; }

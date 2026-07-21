@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Todo + Helpdesk - E-posta Onayı</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <main class="auth-box">
+    <div class="card">
+      <h2>E-posta Onayı</h2>
+      <p id="verifyStatus">Onaylanıyor...</p>
+      <p><a href="index.html">Giriş sayfasına dön</a></p>
+    </div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script>
+    (async function () {
+      const statusEl = document.getElementById('verifyStatus');
+      const token = new URLSearchParams(window.location.search).get('token');
+      if (!token) {
+        statusEl.textContent = 'Onay linki eksik veya geçersiz.';
+        statusEl.classList.add('error');
+        return;
+      }
+      try {
+        const res = await fetch(`http://localhost:3000/api/auth/verify?token=${encodeURIComponent(token)}`);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.error || 'Onay başarısız oldu.');
+        }
+        statusEl.textContent = data.message || 'E-posta onaylandı, artık giriş yapabilirsiniz.';
+      } catch (err) {
+        statusEl.textContent = err.message;
+        statusEl.classList.add('error');
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -124,11 +124,92 @@ Kaynak: `GELIŞTİRME_YOL_HARİTASI.md` (departman tabanlı todo+helpdesk+chat p
 - [x] `npm test` → 15 suite, 126/126 geçti
 - [x] Uçtan uca doğrulama: `npm run seed` gerçek `data.sqlite` üzerinde çalıştırıldı; geçici bir sunucu instance'ı (port 3099, kullanıcının kendi çalışan dev sunucusuna dokunulmadan) ile gerçek HTTP üzerinden login → refresh token exchange → departments → channels → admin/stats → `/api-docs` (200) doğrulandı, sonra o geçici süreç temizlendi
 
+## Genişleme 2: Görev Atama Modülü (SPEC_ATAMA_MODULU.md)
+
+Kaynak: `SPEC_ATAMA_MODULU.md` (çoklu todo listesi + görev atama/FSM + e-posta onayı).
+Mevcut departman/chat/ticket modülleri değiştirilmedi, yalnızca eklendi.
+
+| Faz | İçerik | Durum |
+|---|---|---|
+| Faz A | Çoklu todo listesi (todo_lists, backfill, /api/lists, todos.list_id) | ✅ |
+| Faz B | Görev atama + FSM (assignments, assignment_events, assignmentFsm.js, /api/assignments) | ✅ |
+| Faz C | Zaman çizelgesi + bildirim entegrasyonu | ✅ |
+| Faz D | E-posta onayı (register/login değişikliği, mailer.js, verify/resend) | ✅ |
+| Faz E | OpenAPI + Frontend | ✅ |
+| Faz F | Deploy dokümantasyonu | ✅ (doküman only - gerçek deploy yapılmadı) |
+
+### Faz A — Çoklu Todo Listesi ✅
+
+- [x] Şema: `todo_lists` tablosu, `users.email`/`users.is_verified`, `todos.list_id` (`ON DELETE CASCADE` - liste silinince görevleri de gider) — `backend/src/db.js`
+- [x] Backfill: her kullanıcı için (varsa mevcut `list_id IS NULL` todo'su olan) idempotent bir "Genel" liste oluşturulup eski todo'lar buna bağlandı; e-postasız (migration öncesi) kullanıcılar otomatik `is_verified=1` yapıldı, `db.ensureDefaultListForUser()` olarak dışa açıldı (todos.routes.js'in `list_id` verilmeden POST'ta kullandığı aynı fonksiyon)
+- [x] `backend/src/routes/lists.routes.js` (YENİ) — CRUD + `/api/lists/:id/items`, hepsi `owner_id` ile sahiplik izolasyonlu (404 ile gizleniyor)
+- [x] `todos.routes.js`: `POST /api/todos` artık opsiyonel `list_id` kabul ediyor (verilmezse "Genel"e düşer; başkasının listesiyse 404)
+- [x] `backend/tests/lists.test.js` — CRUD, sahiplik izolasyonu, cascade silme, varsayılan liste, başkasının listesine todo eklemeye çalışma (404)
+- [x] `npm test` → 16 suite, 133/133 geçti (regresyon yok)
+
+### Faz B — Görev Atama + FSM ✅
+
+- [x] Şema: `assignments` (`status` CHECK'li), `assignment_events` (her geçiş bir satır) — `backend/src/db.js`
+- [x] `backend/src/utils/assignmentFsm.js` (YENİ) — tek `transition()` fonksiyonu: geçiş geçerliliği (409) → aktör rolü (403) → yorum zorunluluğu (400) → event yaz → status güncelle → karşı tarafa bildirim, hepsi `db.transaction()` içinde
+- [x] `POST /api/todos/:id/assign` (todos.routes.js) — sadece todo sahibi, `assignee_username`/`assignee_id`, kendine atama 400, hedef kullanıcı yoksa 404
+- [x] `backend/src/routes/assignments.routes.js` (YENİ) — accept/reject/revise/resend/complete/cancel (hepsi `transition()` üzerinden), `/incoming`, `/outgoing` (sayfalı, `?status=` filtreli, todo/kullanıcı adı join'li)
+- [x] `backend/tests/assignments.test.js`, `backend/tests/assignmentFsm.test.js` — geçersiz geçişler (409), yorumsuz reject/revise (400), yanlış aktör (403), terminal durumdan çıkış (409), mutlu yol, revize döngüsü
+- [x] `npm test` → 18 suite, 146/146 geçti
+
+### Faz C — Zaman Çizelgesi + Bildirim ✅
+
+- [x] `GET /api/assignments/:id/timeline` — kronolojik `assignment_events` + aktör kullanıcı adı, sadece assigner/assignee erişebilir (404 ile gizleniyor)
+- [x] Her FSM geçişinde karşı tarafa `notify()` ile bildirim (mevcut `utils/notify.js` kullanıldı, yeni tip yok)
+- [x] `backend/tests/timeline.test.js` — event sırası + yorumlar doğru, taraf olmayana 404, her geçişte bildirim üretildiği doğrulandı
+- [x] `npm test` → 3 yeni test, hepsi yeşil
+
+### Faz D — E-posta Onayı ✅
+
+- [x] Şema: `email_verifications` tablosu — `backend/src/db.js`
+- [x] `backend/src/utils/mailer.js` (YENİ) — `send({to,subject,html})`, `MAIL_DRIVER=console` (dev, stdout'a yazar) / `resend` (prod, Resend API). Test ortamında ayrıca `outbox` dizisine yazar (testlerin token'a, gerçek bir mail kutusu olmadan, API yanıtına asla token koymadan erişebilmesi için — `tests/helpers.js` bunu okuyor)
+- [x] `POST /api/auth/register` artık `email` zorunlu alıyor, `is_verified=0` ile oluşturuyor, onay maili gönderiyor, **token/refreshToken dönmüyor** (kayıt artık otomatik login değil)
+- [x] `GET /api/auth/verify?token=`, `POST /api/auth/resend-verification` (hesap var/yok bilgisini sızdırmaz, her zaman aynı genel yanıt) eklendi
+- [x] `POST /api/auth/login` artık `is_verified=0` ise 403 dönüyor
+- [x] `backend/src/seed.js` — demo hesaplar (admin/alice/bob) `is_verified=1` ile oluşturuluyor (gerçek mail akışına girmez, mevcut eski-kullanıcı grandfather kuralıyla aynı mantık)
+- [x] **Test altyapısı düzeltmesi:** `tests/helpers.js`'teki `registerUser()` artık token'ı `POST /api/auth/login`'i HTTP üzerinden çağırarak almıyor — bunun yerine login'in yaptığı JWT+refresh token üretimini process-içi taklit ediyor. Sebep: `/api/auth/login` sıkı bir rate limiter'ın (15 dakikada 10 deneme, test ortamında da gevşetilmiyor — `security.test.js`'in brute-force testi buna bağlı) arkasında; email onayı öncesi `registerUser` token'ı doğrudan register yanıtından alıyordu, artık login'e ihtiyaç duyunca 10'dan fazla kullanıcı oluşturan test dosyaları 429'a takılıp kullanıcı nesnesi `undefined` dönüyordu (department/deptLead/auditLogs/tickets testlerinde tespit edildi)
+- [x] `backend/tests/emailVerification.test.js` — onaysız login 403, verify sonrası login 200, geçersiz/expired/tekrar kullanılan token, eski (e-postasız, grandfathered) kullanıcı login olabiliyor, resend-verification hesap sızdırmıyor
+- [x] `backend/tests/auth.test.js`, `backend/tests/refreshToken.test.js` yeni register/login akışına güncellendi
+- [x] `npm test` → 20 suite, 157/157 geçti; `npm run seed` gerçek `data.sqlite` üzerinde hatasız çalıştı
+
+### Faz E — OpenAPI + Frontend ✅
+
+- [x] `backend/src/openapi.js` — `TodoList`/`Assignment`/`AssignmentEvent` şemaları, `User` şemasına `email`/`is_verified`, `Todo` şemasına `list_id`; `/api/lists*`, `/api/assignments/*`, `/api/todos/{id}/assign`, `/api/auth/verify`, `/api/auth/resend-verification` path'leri; `Lists`/`Assignments` tag'leri eklendi (43 path, 17 şema)
+- [x] `frontend/index.html` + `js/auth.js` — kayıt formuna `email` alanı eklendi; kayıt artık otomatik login yapmıyor, "onay maili gönderildi" bilgi ekranı + "tekrar gönder" butonu gösteriyor
+- [x] `frontend/verify.html` (YENİ) — `?token=` okuyup `GET /api/auth/verify` çağıran bağımsız sayfa, sonucu gösterip giriş sayfasına link veriyor
+- [x] `frontend/dashboard.html` + `js/dashboard.js` — liste seçici (dropdown) + liste oluşturma formu, todo satırlarına "Ata" butonu (prompt ile kullanıcı adı), "Gelen Görevler" (incoming: Kabul/Reddet/Revize/Tamamla, duruma göre) ve "Gönderdiğim Görevler" (outgoing: Tekrar Gönder/İptal) tabloları, her ikisinde "Geçmiş" (timeline) butonu
+- [x] Gerçek tarayıcıda uçtan uca doğrulandı (claude-in-chrome): kayıt → backend konsol log'undan onay linkini alma → doğrulama → giriş → liste oluşturma → todo oluşturma → başka bir kullanıcıya atama → ikinci kullanıcı (ayrı sekme) kabul → tamamla → ilk kullanıcının "Gönderdiğim Görevler" listesinde "Tamamlandı" görünmesi ve bildirimlerin doğru üretilmesi doğrulandı. (Not: iki sekme aynı origin'i paylaştığı için `localStorage` oturumu paylaşıyor — test sırasında bu, session'ı elle yeniden set ederek yönetildi; gerçek kullanımda farklı kullanıcılar farklı tarayıcı/profil kullanır, bu bir uygulama kusuru değil.)
+- [x] Test sırasında gerçek `data.sqlite`'a yazılan test kullanıcıları temizlemek için `npm run seed` tekrar çalıştırıldı
+
+### Ek — Kapsamlı (Kartezyen) Seed ✅
+
+Kullanıcı talebi üzerine `backend/src/seed.js` tamamen yeniden yazıldı - artık her ekranda/filtrede gösterilecek bir şey olsun diye tam kartezyen kapsam hedefleniyor:
+
+- [x] Kullanıcılar: `role x department` kartezyeni — 1 admin (Genel) + 4 dept_lead (departman başına 1) + 8 user (departman başına 2, admin/alice/bob dahil geriye dönük uyumlu) + 1 bilerek onaysız (`is_verified=0`) demo hesap (`pendinguser`, doğrulama token'ı seed çıktısında yazdırılıyor)
+- [x] Todos: `status x priority` tam kartezyeni (2x3=6) alice ve bob için ayrı ayrı; diğer kullanıcılarda listelerin boş kalmaması için birkaç basit todo
+- [x] Todo lists: herkeste "Genel" + alice/bob'da konuya özel ek liste (Elektrik / Fatura Takibi)
+- [x] Assignments: FSM'in 6 durumunun (pending/accepted/completed/rejected/revision/cancelled) her biri için gerçekçi bir örnek — `accepted` örneği tam revizyon döngüsünü (assign→revise→resend→accept) gösterecek şekilde kurgulandı, olaylar günler içine yayılan `created_at` değerleriyle kronolojik görünüyor
+- [x] Tickets: `department x status` tam kartezyeni (4x3=12), `in_progress`/`closed` olanlara yorum + bildirim + (`closed` için) audit log eklendi
+- [x] Channels: her kanalda birden fazla mesaj, ikisi `@mention` içeriyor (`notifyMentions()` gerçek route'takiyle aynı yardımcı fonksiyon üzerinden çağrıldı - DRY)
+- [x] Notifications: 4 tipin (`ticket_comment`, `ticket_status`, `mention`, `assignment`) her birinden hem okunmuş hem okunmamış en az bir örnek doğrulandı (`GROUP BY type, unread` ile sorgulanıp teyit edildi)
+- [x] Audit logs: `role.change` (dept_lead terfileri) + `ticket.close` (kapatılan 4 talep) örnekleri
+- [x] Gerçek `data.sqlite` üzerinde çalıştırıldı ve doğrulandı; halihazırda açık olan localhost:3000/5500 sunucuları (aynı WAL-mode SQLite dosyasını paylaştığı için) yeniden başlatmaya gerek kalmadan yeni veriyi anında yansıttı
+- [x] `README.md`'deki hesap tablosu güncellendi
+
+### Faz F — Deploy Dokümantasyonu ✅
+
+- [x] `DEPLOY_CHECKLIST.md` (YENİ) — Railway/Render kalıcı disk (volume) gereksinimi, zorunlu env değişkenleri (`JWT_SECRET`, `CORS_ORIGINS`, `MAIL_DRIVER`, `RESEND_API_KEY`, `APP_URL`), deploy öncesi doğrulama listesi. Gerçek bir deploy bu ortamda yapılmadı (altyapı erişimi yok) - doküman, kullanıcının kendi hesabında uygulaması için.
+
 ## Ortam Gereksinimleri
 
 - Node.js (test edilen sürüm: v20.19.4) + npm
 - Ek credential/servis gerekmiyor. JWT secret `.env` ile override edilebilir (`JWT_SECRET`), yoksa `backend/src/config.js` içindeki dev fallback kullanılır — **prod'a taşınırsa mutlaka gerçek bir secret set edilmeli**.
 - Veritabanı: `better-sqlite3`, dosya tabanlı (`backend/data.sqlite`), migration aracı yok — şema `backend/src/db.js` içinde `CREATE TABLE IF NOT EXISTS` ile tanımlı.
+- E-posta onayı (Görev Atama Modülü, bkz. aşağı): `MAIL_DRIVER` verilmezse `console` (dev - onay linki sunucu loguna yazılır, gerçek mail gitmez); prod'da `MAIL_DRIVER=resend` + `RESEND_API_KEY` gerekir. `APP_URL` verilmezse onay linkleri `http://localhost:5500`'e düşer. Detay: `DEPLOY_CHECKLIST.md`.
 
 ### Faz 1 — Backend REST API ✅
 
@@ -178,13 +259,15 @@ Kaynak: `GELIŞTİRME_YOL_HARİTASI.md` (departman tabanlı todo+helpdesk+chat p
 
 | # | Açıklama | Öncelik |
 |---|---|---|
-| 1 | Gerçek tarayıcıda manuel UI testi yapılmadı (bkz. Faz 4) | Orta |
+| 1 | Gerçek tarayıcıda manuel UI testi (orijinal todo/ticket/admin ekranları için) yapılmadı (bkz. Faz 4). Görev Atama Modülü'nün yeni ekranları (liste, atama, onay) claude-in-chrome ile gerçek tarayıcıda uçtan uca doğrulandı (bkz. Genişleme 2 Faz E) | Düşük (yeni modül için kapandı, eski ekranlar için açık) |
 | 2 | Ticket düzenleme/todo başlık düzenleme frontend'de `prompt()` ile yapılıyor — basitlik için tercih edildi, üretime taşınırsa inline form'a çevrilmeli | Düşük |
 | 3 | JWT secret için `.env` yoksa dev fallback kullanılıyor — prod'da mutlaka `JWT_SECRET` set edilmeli | Yüksek (sadece prod için) |
 | ~~4~~ | ~~Rate limiting / brute-force koruması yok~~ — Genişleme Faz 0'da eklendi (helmet + global/login rate limiter) | Kapandı |
 | 5 | Şirket chat'i şu an sadece polling (`?after=`) ile gerçek zamanlı; SSE/Socket.IO roadmap'te sonraki adım olarak bırakıldı (bu fazın kabul kriterlerinde değildi) | Orta |
 | 6 | Chat mesajları ve ticket yorumları için soft delete (`deleted_at`) yok — silme kalıcı; roadmap'in "Mimari Notlar" bölümü ileride bunu öneriyor, audit log ile tutarlılık için düşünülebilir | Düşük |
 | 7 | `data.sqlite` tek dosya/tek yazar modeli sürüyor — chat hacmi ciddi büyürse roadmap'in önerdiği gibi PostgreSQL'e geçiş gerekebilir | Düşük (şu ölçekte sorun değil) |
+| 8 | `utils/mailer.js`'in `resend` sürücüsü gerçek bir Resend API key'iyle uçtan uca denenmedi (sadece `console` sürücüsü test edildi/tarayıcıda doğrulandı) — canlıya çıkmadan önce gerçek bir mail gönderimiyle doğrulanmalı | Orta (sadece prod için) |
+| 9 | Görev atama akışında "Reddet"/"Revize İste" yorum girişleri ve "Sil"/"Ata" onayları frontend'de `prompt()`/`confirm()`/`alert()` ile yapılıyor (mevcut #2 ile aynı desen) — üretime taşınırsa inline form/modal'a çevrilmeli | Düşük |
 
 ## Nasıl Çalıştırılır
 

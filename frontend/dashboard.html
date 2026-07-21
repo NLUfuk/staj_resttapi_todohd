@@ -18,6 +18,14 @@
   <main>
     <section class="card">
       <h2>Todo'larım</h2>
+      <form id="listForm" class="inline">
+        <label for="listSelect" class="muted" style="align-self:center;margin:0;">Liste:</label>
+        <select id="listSelect"></select>
+        <input id="newListName" placeholder="Yeni liste adı" />
+        <button type="submit">Liste Oluştur</button>
+      </form>
+      <p id="listError" class="error hidden"></p>
+
       <form id="todoForm" class="inline">
         <input id="todoTitle" placeholder="Başlık" required />
         <input id="todoDescription" placeholder="Açıklama (opsiyonel)" />
@@ -29,6 +37,28 @@
           <tr><th>Başlık</th><th>Açıklama</th><th>Durum</th><th>İşlemler</th></tr>
         </thead>
         <tbody id="todoList"></tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>Gelen Görevler <span class="muted">(bana atananlar)</span></h2>
+      <p id="incomingError" class="error hidden"></p>
+      <table>
+        <thead>
+          <tr><th>Görev</th><th>Atayan</th><th>Durum</th><th>İşlemler</th></tr>
+        </thead>
+        <tbody id="incomingList"></tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>Gönderdiğim Görevler <span class="muted">(atadıklarım)</span></h2>
+      <p id="outgoingError" class="error hidden"></p>
+      <table>
+        <thead>
+          <tr><th>Görev</th><th>Atanan</th><th>Durum</th><th>İşlemler</th></tr>
+        </thead>
+        <tbody id="outgoingList"></tbody>
       </table>
     </section>
 

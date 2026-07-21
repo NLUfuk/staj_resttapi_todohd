@@ -84,6 +84,49 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
   CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
+
+  CREATE TABLE IF NOT EXISTS todo_lists (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_todo_lists_owner ON todo_lists(owner_id);
+
+  CREATE TABLE IF NOT EXISTS assignments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    todo_id INTEGER NOT NULL REFERENCES todos(id) ON DELETE CASCADE,
+    assigner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    assignee_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'pending'
+      CHECK(status IN ('pending','accepted','completed','rejected','revision','cancelled')),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_assignments_assignee ON assignments(assignee_id, status);
+  CREATE INDEX IF NOT EXISTS idx_assignments_assigner ON assignments(assigner_id, status);
+
+  CREATE TABLE IF NOT EXISTS assignment_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+    actor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    action TEXT NOT NULL,
+    from_status TEXT,
+    to_status TEXT NOT NULL,
+    comment TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_assignment_events_assignment
+    ON assignment_events(assignment_id, created_at);
+
+  CREATE TABLE IF NOT EXISTS email_verifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    expires_at TEXT NOT NULL,
+    used_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
 
 const TICKET_COMMENTS_TABLE_SQL = `
@@ -255,7 +298,44 @@ for (const dept of DEFAULT_DEPARTMENTS) {
 }
 insertChannel.run(null, 'genel');
 
+addColumnIfMissing('users', 'email', 'TEXT');
+addColumnIfMissing('users', 'is_verified', 'INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('todos', 'list_id', 'INTEGER REFERENCES todo_lists(id) ON DELETE CASCADE');
+
+// Backfill for pre-existing data (assignment module): every user gets a
+// default "Genel" todo_lists row (idempotent - only created if missing), and
+// any of that user's todos left with list_id NULL (created before this
+// column existed) are attached to it. Pre-existing (email-less) users are
+// marked verified so they can keep logging in - the email requirement only
+// applies to new registrations from here on.
+function ensureDefaultListForUser(userId) {
+  const existing = db
+    .prepare("SELECT id FROM todo_lists WHERE owner_id = ? AND name = 'Genel'")
+    .get(userId);
+  if (existing) return existing.id;
+  return db
+    .prepare('INSERT INTO todo_lists (owner_id, name) VALUES (?, ?)')
+    .run(userId, 'Genel').lastInsertRowid;
+}
+
+const usersNeedingBackfill = db
+  .prepare(
+    `SELECT DISTINCT u.id FROM users u
+     WHERE u.id IN (SELECT user_id FROM todos WHERE list_id IS NULL)`
+  )
+  .all();
+for (const { id: userId } of usersNeedingBackfill) {
+  const listId = ensureDefaultListForUser(userId);
+  db.prepare('UPDATE todos SET list_id = ? WHERE user_id = ? AND list_id IS NULL').run(
+    listId,
+    userId
+  );
+}
+
+db.prepare("UPDATE users SET is_verified = 1 WHERE email IS NULL AND is_verified = 0").run();
+
 module.exports = db;
 module.exports.genelDepartmentId = genelDepartmentId;
 module.exports.columnExists = columnExists;
 module.exports.addColumnIfMissing = addColumnIfMissing;
+module.exports.ensureDefaultListForUser = ensureDefaultListForUser;

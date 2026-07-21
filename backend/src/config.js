@@ -13,4 +13,5 @@ module.exports = {
   corsOrigins: process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim())
     : defaultCorsOrigins,
+  appUrl: process.env.APP_URL || 'http://localhost:5500',
 };

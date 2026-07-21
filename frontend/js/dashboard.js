@@ -6,6 +6,9 @@ document.getElementById('logoutBtn').addEventListener('click', logout);
 
 const todoError = document.getElementById('todoError');
 const ticketError = document.getElementById('ticketError');
+const listError = document.getElementById('listError');
+const incomingError = document.getElementById('incomingError');
+const outgoingError = document.getElementById('outgoingError');
 
 function showError(el, message) {
   el.textContent = message;
@@ -21,12 +24,66 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+// ---- Lists ----
+
+let currentListId = null; // null = "Tümü" (GET /api/todos, unfiltered)
+
+async function loadLists() {
+  clearError(listError);
+  try {
+    const lists = await api('/lists');
+    const select = document.getElementById('listSelect');
+    const previous = currentListId;
+    select.innerHTML = '<option value="">Tümü</option>';
+    lists.forEach((l) => {
+      const opt = document.createElement('option');
+      opt.value = l.id;
+      opt.textContent = l.name;
+      select.appendChild(opt);
+    });
+    // keep the previously selected list active across reloads if it still exists
+    if (previous !== null && lists.some((l) => l.id === previous)) {
+      select.value = String(previous);
+    } else {
+      currentListId = null;
+      select.value = '';
+    }
+  } catch (err) {
+    showError(listError, err.message);
+  }
+}
+
+document.getElementById('listSelect').addEventListener('change', (e) => {
+  currentListId = e.target.value ? Number(e.target.value) : null;
+  loadTodos();
+});
+
+document.getElementById('listForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clearError(listError);
+  const nameInput = document.getElementById('newListName');
+  const name = nameInput.value.trim();
+  if (!name) return;
+  try {
+    const list = await api('/lists', { method: 'POST', body: { name } });
+    nameInput.value = '';
+    await loadLists();
+    document.getElementById('listSelect').value = String(list.id);
+    currentListId = list.id;
+    await loadTodos();
+  } catch (err) {
+    showError(listError, err.message);
+  }
+});
+
 // ---- Todos ----
 
 async function loadTodos() {
   clearError(todoError);
   try {
-    const todos = await api('/todos');
+    const todos = currentListId
+      ? await api(`/lists/${currentListId}/items`)
+      : await api('/todos');
     renderTodos(todos);
     populateTodoSelect(todos);
   } catch (err) {
@@ -52,6 +109,7 @@ function renderTodos(todos) {
           ${t.status === 'pending' ? 'Tamamla' : 'Beklemeye al'}
         </button>
         <button class="secondary" data-action="edit" data-id="${t.id}">Düzenle</button>
+        <button class="secondary" data-action="assign" data-id="${t.id}">Ata</button>
         <button class="danger" data-action="delete" data-id="${t.id}">Sil</button>
       </td>
     </tr>`
@@ -78,7 +136,10 @@ document.getElementById('todoForm').addEventListener('submit', async (e) => {
   const title = document.getElementById('todoTitle').value.trim();
   const description = document.getElementById('todoDescription').value.trim();
   try {
-    await api('/todos', { method: 'POST', body: { title, description: description || null } });
+    await api('/todos', {
+      method: 'POST',
+      body: { title, description: description || null, list_id: currentListId || undefined },
+    });
     document.getElementById('todoForm').reset();
     await loadTodos();
   } catch (err) {
@@ -103,12 +164,141 @@ document.getElementById('todoList').addEventListener('click', async (e) => {
       const newTitle = prompt('Yeni başlık:');
       if (newTitle === null || newTitle.trim() === '') return;
       await api(`/todos/${id}`, { method: 'PUT', body: { title: newTitle.trim() } });
+    } else if (action === 'assign') {
+      const assignee = prompt('Kime atansın? (kullanıcı adı)');
+      if (assignee === null || assignee.trim() === '') return;
+      await api(`/todos/${id}/assign`, { method: 'POST', body: { assignee_username: assignee.trim() } });
+      alert('Görev atandı.');
+      await loadOutgoing();
+      return;
     }
     await loadTodos();
   } catch (err) {
     showError(todoError, err.message);
   }
 });
+
+// ---- Assignments ----
+
+const ASSIGNMENT_STATUS_LABELS = {
+  pending: 'Bekliyor',
+  accepted: 'Kabul edildi',
+  completed: 'Tamamlandı',
+  rejected: 'Reddedildi',
+  revision: 'Revizyon istendi',
+  cancelled: 'İptal edildi',
+};
+
+function assignmentActionsHtml(a, role) {
+  const buttons = [];
+  if (role === 'incoming') {
+    if (a.status === 'pending') {
+      buttons.push(`<button class="secondary" data-action="accept" data-id="${a.id}">Kabul Et</button>`);
+      buttons.push(`<button class="danger" data-action="reject" data-id="${a.id}">Reddet</button>`);
+      buttons.push(`<button class="secondary" data-action="revise" data-id="${a.id}">Revize İste</button>`);
+    } else if (a.status === 'accepted') {
+      buttons.push(`<button class="secondary" data-action="complete" data-id="${a.id}">Tamamla</button>`);
+    }
+  } else {
+    if (a.status === 'revision') {
+      buttons.push(`<button class="secondary" data-action="resend" data-id="${a.id}">Tekrar Gönder</button>`);
+    }
+    if (['pending', 'revision', 'accepted'].includes(a.status)) {
+      buttons.push(`<button class="danger" data-action="cancel" data-id="${a.id}">İptal Et</button>`);
+    }
+  }
+  buttons.push(`<button class="secondary" data-action="timeline" data-id="${a.id}">Geçmiş</button>`);
+  return buttons.join('');
+}
+
+function renderAssignments(tbodyId, assignments, role, counterpartKey) {
+  const tbody = document.getElementById(tbodyId);
+  if (assignments.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" class="muted">Henüz kayıt yok.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = assignments
+    .map(
+      (a) => `
+    <tr>
+      <td>${escapeHtml(a.todo_title)}</td>
+      <td>${escapeHtml(a[counterpartKey])}</td>
+      <td><span class="badge ${a.status}">${ASSIGNMENT_STATUS_LABELS[a.status] || a.status}</span></td>
+      <td class="row-actions">${assignmentActionsHtml(a, role)}</td>
+    </tr>`
+    )
+    .join('');
+}
+
+async function loadIncoming() {
+  clearError(incomingError);
+  try {
+    const assignments = await api('/assignments/incoming');
+    renderAssignments('incomingList', assignments, 'incoming', 'assigner_username');
+  } catch (err) {
+    showError(incomingError, err.message);
+  }
+}
+
+async function loadOutgoing() {
+  clearError(outgoingError);
+  try {
+    const assignments = await api('/assignments/outgoing');
+    renderAssignments('outgoingList', assignments, 'outgoing', 'assignee_username');
+  } catch (err) {
+    showError(outgoingError, err.message);
+  }
+}
+
+async function showTimeline(id) {
+  try {
+    const events = await api(`/assignments/${id}/timeline`);
+    const items = events
+      .map(
+        (e) =>
+          `${e.to_status} - ${e.actor_username} (${e.created_at})${e.comment ? ': ' + e.comment : ''}`
+      )
+      .join('\n');
+    alert(items || 'Geçmiş bulunamadı.');
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function handleAssignmentAction(e, errEl, reload) {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  const action = btn.dataset.action;
+
+  if (action === 'timeline') {
+    await showTimeline(id);
+    return;
+  }
+
+  let body;
+  if (action === 'reject' || action === 'revise') {
+    const comment = prompt(action === 'reject' ? 'Red gerekçesi (zorunlu):' : 'Revizyon notu (zorunlu):');
+    if (comment === null || comment.trim() === '') return;
+    body = { comment: comment.trim() };
+  }
+
+  try {
+    await api(`/assignments/${id}/${action}`, { method: 'POST', body });
+    await loadIncoming();
+    await loadOutgoing();
+    await loadTodos();
+  } catch (err) {
+    showError(errEl, err.message);
+  }
+}
+
+document
+  .getElementById('incomingList')
+  .addEventListener('click', (e) => handleAssignmentAction(e, incomingError));
+document
+  .getElementById('outgoingList')
+  .addEventListener('click', (e) => handleAssignmentAction(e, outgoingError));
 
 // ---- Tickets ----
 
@@ -190,6 +380,8 @@ document.getElementById('ticketList').addEventListener('click', async (e) => {
 });
 
 if (user) {
-  loadTodos();
+  loadLists().then(loadTodos);
+  loadIncoming();
+  loadOutgoing();
   loadTickets();
 }

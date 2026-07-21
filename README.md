@@ -51,13 +51,16 @@ Korumalı (auth gereken) uçları denemek için:
 
 OpenAPI şeması `backend/src/openapi.js` dosyasında elle tanımlı (JSDoc yerine tek dosyada tutulan statik obje) — yeni bir route eklersen orayı da güncelle.
 
-Seed sonrası hesaplar:
+`npm run seed`, rol x departman kartezyeninin tamamını (admin + her departmanda bir dept_lead + her departmanda iki user), her todo status/priority kombinasyonunu, her atama (assignment) durumunu, her departman x ticket status kombinasyonunu ve her bildirim tipinden okunmuş/okunmamış birer örneği oluşturan kapsamlı bir veri seti yazar. Tam liste ve şifreler `npm run seed` çıktısında yazdırılır; başlıca hesaplar:
 
-| Kullanıcı adı | Şifre | Rol |
-|---|---|---|
-| admin | admin123 | admin |
-| alice | alice123 | user |
-| bob | bob123 | user |
+| Kullanıcı adı | Şifre | Rol | Departman |
+|---|---|---|---|
+| admin | admin123 | admin | Genel |
+| lead_donanim / lead_yazilim / lead_muhasebe / lead_genel | lead123 | dept_lead | (adından belli) |
+| alice | alice123 | user | Donanım |
+| bob | bob123 | user | Muhasebe |
+| user_donanim2, user_yazilim1/2, user_muhasebe2, user_genel1/2 | user123 | user | (adından belli) |
+| pendinguser | pending123 | user | Genel — **e-postası onaysız** (`is_verified=0`), giriş yapamaz; doğrulama linki seed çıktısında yazdırılır |
 
 ### Testler
 

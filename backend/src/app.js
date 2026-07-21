@@ -13,6 +13,8 @@ const adminRoutes = require('./routes/admin.routes');
 const departmentsRoutes = require('./routes/departments.routes');
 const channelsRoutes = require('./routes/channels.routes');
 const notificationsRoutes = require('./routes/notifications.routes');
+const listsRoutes = require('./routes/lists.routes');
+const assignmentsRoutes = require('./routes/assignments.routes');
 
 const app = express();
 
@@ -62,6 +64,8 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/departments', departmentsRoutes);
 app.use('/api/channels', channelsRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/lists', listsRoutes);
+app.use('/api/assignments', assignmentsRoutes);
 
 // 404 for unknown API routes
 app.use('/api', (req, res) => res.status(404).json({ error: 'not found' }));
