@@ -19,6 +19,14 @@ const assignmentsRoutes = require('./routes/assignments.routes');
 
 const app = express();
 
+// Render (and most PaaS hosts) sit behind a reverse proxy that sets
+// X-Forwarded-For; without this, express-rate-limit can't trust that header
+// and throws ERR_ERL_UNEXPECTED_X_FORWARDED_FOR, plus every request would
+// appear to come from the proxy's own IP, defeating per-IP rate limiting.
+// `1` trusts exactly one hop (the platform's own proxy), not arbitrary
+// client-supplied headers.
+app.set('trust proxy', 1);
+
 // Tests run in-band and expect no artificial slowdown/blocking from rate
 // limiting - keep the limits generous there so the existing suite (and new
 // ones) aren't flaky due to shared counters across test files.
