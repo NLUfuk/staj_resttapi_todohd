@@ -46,9 +46,18 @@ async function sendViaResend({ to, subject, html }) {
 let gmailTransporter = null;
 function getGmailTransporter() {
   if (!gmailTransporter) {
+    // Explicit host/port/STARTTLS instead of `service: 'gmail'` (which
+    // defaults to port 465/SSL) - some PaaS free tiers throttle or block
+    // 465 but allow 587/STARTTLS. connectionTimeout keeps a genuinely
+    // blocked port from hanging the request for the platform's default
+    // (much longer) socket timeout.
     gmailTransporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
+      requireTLS: true,
       auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
+      connectionTimeout: 10000,
     });
   }
   return gmailTransporter;
