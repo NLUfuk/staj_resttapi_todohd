@@ -272,6 +272,43 @@ altyapısının tamamı backend'de zaten mevcuttu (bkz. yukarıdaki "Genişleme 
 - [x] `DEPLOY_CHECKLIST.md` güncellendi: Resend sandbox `RESEND_FROM` kısıtı ve yerel
       doğrulama notu eklendi
 
+## Genişleme 5: Canlı Deploy (Render) + DESIGN.md Uygulaması + Seed Endpoint (2026-07-21)
+
+- [x] **Canlı deploy:** `https://staj-resttapi-todohd.onrender.com` - Render Free Web Service,
+      GitHub reposuna bağlı (`NLUfuk/staj_resttapi_todohd`, `main` dalı, otomatik deploy).
+      Root Directory `backend`, Build `npm install`, Start `npm start`.
+- [x] **Bilinen kısıt (doğrulandı):** Free plan kalıcı disk sağlamıyor - bazı redeploy'lar
+      `data.sqlite`'ı sıfırlıyor, bazıları sıfırlamıyor (tutarlı değil, muhtemelen Render'ın
+      hangi durumda konteyneri/diski yeniden kullandığına bağlı). Her redeploy sonrası
+      admin girişini test edip gerekirse `/api/admin/seed`'i tekrar çağırmak gerekiyor.
+- [x] `/api/admin/seed` endpoint'i (`SEED_SECRET` ile korumalı, bkz. Genişleme 4 sonrası
+      kod notu) kullanılarak canlı veritabanına tam kartezyen demo veri seti yüklendi.
+- [x] **DESIGN.md uygulandı:** Kullanıcının hazırladığı tasarım sistemi (koyu tema,
+      Linear/Vercel tarzı SaaS dashboard, CSS değişken token'ları, sidebar+topbar shell,
+      btn/card/badge/table/nav-item/toast reçeteleri) tüm frontend'e uygulandı:
+      - `frontend/css/style.css` baştan yazıldı (DESIGN.md'deki token'lar + Inter font)
+      - `admin.html`/`dashboard.html` topbar+sidebar app shell'e geçirildi (element ID'leri
+        korunarak - JS mantığı değişmedi)
+      - dept_lead için topbar'da "Departman Yöneticisi" rozeti eklendi (DESIGN.md §6)
+      - `api.js`: 403 yanıtları artık DESIGN.md'nin toast component'iyle ("Bu işlem için
+        yetkiniz yok.") ayrıca gösteriliyor
+- [x] **Gerçek bug bulundu ve düzeltildi:** `admin.js`'de dept_lead girişinde
+      `activateTab('tickets')` dosyanın ortasında, `const ticketsError` daha aşağıda
+      tanımlanmadan önce çağrılıyordu - temporal-dead-zone `ReferenceError`'ı sessizce
+      yutulup (hiçbir yerde yakalanmadığı için) Helpdesk Talepleri tablosunun ilk
+      yüklemede boş kalmasına sebep oluyordu. Çağrı dosyanın sonuna (admin'in
+      `loadUsers()` çağrısıyla aynı yere) taşınarak düzeltildi. Bu, konuşma başında
+      arkadaşın "onaylanıyor'da takılı kaldı" sorunundan bağımsız, ayrı ve gerçek bir
+      frontend hatasıydı.
+- [x] Yerelde (localhost:3000, backend'in kendi sunduğu frontend) admin/alice/dept_lead
+      girişleriyle uçtan uca görsel doğrulama yapıldı (claude-in-chrome) - Kullanıcılar,
+      Departmanlar, Helpdesk Talepleri sekmeleri; alice'in dolu todo listesi; dept_lead'in
+      scope'lu görünümü ve rozeti
+- [x] Canlıda da aynı doğrulama tekrarlandı - yeni tasarım + seed veri + dept_lead bug
+      fix'i production'da teyit edildi
+- [x] `npm test` → 20 suite, 157/157 geçti (backend kodu sadece seed.js refactor +
+      seed route eklemesiyle değişti, regresyon yok)
+
 ## Genişleme 4: Gmail SMTP Sürücüsü (2026-07-21)
 
 Genişleme 3'teki bilinen sorun #11 canlıda hemen ortaya çıktı: kullanıcı arkadaşının
@@ -306,6 +343,8 @@ email address`). Kullanıcının özel bir domain'i olmadığından Gmail SMTP'y
 | 10 | Bu oturumda `claude-in-chrome`'un `resize_window` aracı pencereyi gerçekten yeniden boyutlandırmadı (`document.documentElement.clientWidth` sabit kaldı) - gerçek mobil/dar viewport testi bu yüzden JS ile `main` genişliğini geçici olarak sıkıştırarak simüle edildi, gerçek bir tarayıcı pencere yeniden boyutlandırması ile ayrıca doğrulanmalı | Düşük (CSS mantığı doğrulandı, sadece araç kısıtı) |
 | ~~11~~ | ~~Resend sandbox kısıtı yüzünden başka alıcılara mail gitmiyordu~~ - Genişleme 4'te `MAIL_DRIVER=gmail`'e geçilerek kapandı | Kapandı |
 | 12 | Gmail SMTP günlük gönderim limiti düşük (kişisel hesaplar için ~500/gün) - kullanıcı sayısı artarsa Resend'e (domain doğrulamasıyla) veya özel bir transactional mail sağlayıcısına geçiş gerekebilir | Düşük (şu ölçekte sorun değil) |
+| 13 | Render free plan'da `data.sqlite`'ın redeploy sonrası sıfırlanıp sıfırlanmayacağı tutarsız (bazı deploy'larda korunuyor, bazılarında gitti) - her redeploy sonrası `admin/admin123` ile giriş denenip gerekirse `POST /api/admin/seed` (`X-Seed-Secret` header'ıyla) tekrar çağrılmalı | Orta (kalıcı kullanım için Persistent Disk'li ücretli plana geçiş gerekir) |
+| 14 | Bir push'ta (b85f1ac) GitHub→Render otomatik deploy webhook'u tetiklenmedi/gecikti - Render dashboard'unda "Manual Deploy → Deploy latest commit" ile elle tetiklenmesi gerekti. Tek seferlik bir aksaklık gibi görünüyor ama gelecekte bir push sonrası site değişmiyorsa önce Render'ın Events sekmesinden yeni bir deploy başladığını doğrulamak gerekir | Düşük (nadiren tekrarlanabilir, elle deploy her zaman yedek çözüm) |
 
 ## Ortam Gereksinimleri
 

@@ -1,8 +1,28 @@
 # DEPLOY_CHECKLIST.md
 
+> **Canlı:** `https://staj-resttapi-todohd.onrender.com` (Render Free Web Service,
+> `NLUfuk/staj_resttapi_todohd` reposunun `main` dalına bağlı, otomatik deploy).
+> Demo hesaplar için `README.md`'ye bakın; veri kaybolduysa aşağıdaki "Seed endpoint"
+> bölümüyle yeniden doldurun.
+
 SQLite korunur, PostgreSQL'e geçiş yok (bkz. `SPEC_ATAMA_MODULU.md` §8). `data.sqlite`
 tek dosya olduğu için host'ta **kalıcı disk (volume)** şart - volume olmadan her
-deploy'da veri sıfırlanır.
+deploy'da veri sıfırlanabilir (Render free planda gözlemlendiği üzere tutarlı değil,
+bazı redeploy'lar veriyi koruyor bazıları koruyor - bkz. "Kalıcı disk kısıtı").
+
+## Seed endpoint (shell erişimi olmayan hostlar için)
+
+Render free planda shell/console yok, yani `npm run seed` doğrudan çalıştırılamıyor.
+Bunun yerine `SEED_SECRET` env değişkeni set edildiğinde açılan bir endpoint var:
+
+```
+POST /api/admin/seed
+X-Seed-Secret: <SEED_SECRET değeri>
+```
+
+Tam kartezyen demo veri setini (bkz. `backend/src/seed.js`) sıfırdan yeniden oluşturur
+- admin/dept_lead/user hesapları, departmanlar, todo'lar, ticket'lar dahil. `SEED_SECRET`
+set edilmemişse route 404 döner (tamamen kapalı). Doğru header olmadan 403.
 
 ## Mimari: tek servis (backend frontend'i de sunuyor)
 
@@ -51,11 +71,13 @@ ediyor); `frontend/js/api.js` ve `frontend/verify.html` hangi origin'de
 | `PORT` | Servisin dinleyeceği port | Host genelde otomatik sağlar (Railway/Render `PORT` inject eder) |
 | `JWT_SECRET` | Access token imzalama anahtarı | **Evet** - `backend/src/config.js`'teki dev fallback (`dev-secret-change-me`) prod'da KULLANILMAMALI |
 | `CORS_ORIGINS` | Frontend'in servis edildiği origin(ler), virgülle ayrılmış | Evet, aksi halde varsayılan `localhost:5500,localhost:5173` kullanılır ve canlı frontend engellenir |
-| `MAIL_DRIVER` | `console` (varsayılan, dev), `resend` veya `gmail` (prod) | Prod'da `resend` veya `gmail` olmalı - aksi halde onay mailleri sadece sunucu loguna yazılır, kullanıcıya ulaşmaz |
+| `MAIL_DRIVER` | `console` (varsayılan, dev), `resend`, `gmail` veya `sendgrid` (prod) | Prod'da `sendgrid` önerilir (bkz. not) - aksi halde onay mailleri sadece sunucu loguna yazılır, kullanıcıya ulaşmaz |
 | `RESEND_API_KEY` | Resend API anahtarı | `MAIL_DRIVER=resend` iken zorunlu |
-| `GMAIL_USER` / `GMAIL_APP_PASSWORD` | Gönderici Gmail adresi + Google Hesap → Uygulama Şifreleri'nden alınan 16 haneli şifre (2 Adımlı Doğrulama açık olmalı) | `MAIL_DRIVER=gmail` iken ikisi de zorunlu |
+| `GMAIL_USER` / `GMAIL_APP_PASSWORD` | Gönderici Gmail adresi + Google Hesap → Uygulama Şifreleri'nden alınan 16 haneli şifre (2 Adımlı Doğrulama açık olmalı) | `MAIL_DRIVER=gmail` iken ikisi de zorunlu - **Render free planda çalışmaz** (bkz. not) |
+| `SENDGRID_API_KEY` / `SENDGRID_FROM` | SendGrid API anahtarı + Single Sender Verification ile doğrulanmış gönderici adresi | `MAIL_DRIVER=sendgrid` iken ikisi de zorunlu |
 | `APP_URL` | Onay linklerinin işaret ettiği frontend origin'i (`utils/mailer.js` / `routes/auth.routes.js`) | Evet - yoksa link `http://localhost:5500`'e düşer, canlıda çalışmaz |
 | `NODE_ENV` | `production` | Rate limit / log davranışı için |
+| `SEED_SECRET` | `POST /api/admin/seed`'i açan paylaşılan sır | Hayır - unset ise endpoint tamamen kapalı (404) |
 
 ## Deploy öncesi doğrulama
 
@@ -66,10 +88,28 @@ ediyor); `frontend/js/api.js` ve `frontend/verify.html` hangi origin'de
 5. `/api/health` 200 dönüyor, `/api-docs` erişilebilir.
 6. Gerçek bir kayıt + onay maili akışı prod ortamında uçtan uca denenmiş (özellikle `MAIL_DRIVER=resend` ile).
 
-> **Not (2026-07-21):** `MAIL_DRIVER=resend` yerelde gerçek bir Resend API key'iyle uçtan uca doğrulandı - bkz. `PROGRESS.md` "Genişleme 3". Sandbox `RESEND_FROM=onboarding@resend.dev` yalnızca hesap sahibinin kendi doğrulanmış e-postasına gönderime izin veriyor; canlıya taşınırken Resend'de özel bir domain doğrulanıp `RESEND_FROM` ona göre güncellenmeli, aksi halde başka alıcılara mail gitmez. Bu kısıt canlıda hemen keşfedildiği için (bkz. "Genişleme 4") ortam `MAIL_DRIVER=gmail`'e geçirildi - domain gerektirmediğinden herhangi bir alıcıya gönderebiliyor.
+> **Not (2026-07-21, mail sürücüsü geçmişi):**
+> 1. `MAIL_DRIVER=resend` yerelde çalıştı ama sandbox `RESEND_FROM=onboarding@resend.dev`
+>    yalnızca hesap sahibinin kendi doğrulanmış e-postasına gönderime izin veriyor -
+>    domain doğrulanmadan başka alıcılara mail gitmiyor.
+> 2. `MAIL_DRIVER=gmail`'e geçildi (domain gerektirmiyor) - yerelde çalıştı, ama
+>    **Render free planına deploy edilince SMTP bağlantıları (hem 465 hem 587 portu)
+>    timeout ile başarısız oldu** - platform giden SMTP trafiğini engelliyor (yaygın bir
+>    ücretsiz PaaS kısıtı, spam önleme amaçlı). `nodemailer` config'i (port/TLS) hiçbir
+>    şekilde bunu aşamadı, tamamen platform seviyesinde bir engel.
+> 3. `MAIL_DRIVER=sendgrid`'e geçildi - SendGrid'in Web API'si HTTPS üzerinden çalışıyor
+>    (SMTP değil), bu yüzden platform port engeline takılmıyor. Single Sender
+>    Verification (tek bir e-posta doğrulama, domain gerekmiyor) ile herhangi bir
+>    alıcıya gönderim açıldı. Production'da doğrulandı, çalışıyor.
+>
+> **Sonuç:** Domain'i olmayan bir gönderici için SMTP tabanlı sürücüler (`gmail`) sadece
+> yerelde/SMTP'yi engellemeyen hostlarda güvenilir. Herhangi bir PaaS'a deploy ediliyorsa
+> `resend` (domainli) veya `sendgrid` (Single Sender Verification'lı) tercih edilmeli.
 
-## Kapsam dışı
+## Kapsam dışı / gerçekleşen
 
-Bu checklist yalnızca dokümantasyondur - gerçek bir Railway/Render hesabına deploy
-bu ortamda yapılmadı (altyapı erişimi yok). Kullanıcı bu adımları kendi hesabında
-uygulamalı.
+Bu checklist başlangıçta yalnızca dokümantasyon olarak yazılmıştı (altyapı erişimi
+olmadığı varsayımıyla). **2026-07-21'de gerçek bir Render deploy'u yapıldı** (bkz.
+dosyanın en üstündeki canlı link) - kullanıcının kendi Render/GitHub/SendGrid
+hesaplarıyla, tarayıcı otomasyonu (claude-in-chrome) üzerinden adım adım. Bu checklist
+artık hem "nasıl deploy edilir" hem de "bu projede gerçekte ne yapıldı" belgesi.
