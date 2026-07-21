@@ -11,6 +11,7 @@ const authRoutes = require('./routes/auth.routes');
 const todosRoutes = require('./routes/todos.routes');
 const ticketsRoutes = require('./routes/tickets.routes');
 const adminRoutes = require('./routes/admin.routes');
+const seedRoutes = require('./routes/seed.routes');
 const departmentsRoutes = require('./routes/departments.routes');
 const channelsRoutes = require('./routes/channels.routes');
 const notificationsRoutes = require('./routes/notifications.routes');
@@ -77,6 +78,10 @@ app.use(
 app.use('/api/auth', authRoutes);
 app.use('/api/todos', todosRoutes);
 app.use('/api/tickets', ticketsRoutes);
+// Mounted before adminRoutes (which requires auth for everything under
+// /api/admin) - this specific path needs to stay reachable pre-auth, see
+// routes/seed.routes.js for why and how it's actually gated.
+app.use('/api/admin/seed', seedRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/departments', departmentsRoutes);
 app.use('/api/channels', channelsRoutes);

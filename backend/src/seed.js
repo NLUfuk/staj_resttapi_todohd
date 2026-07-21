@@ -9,6 +9,12 @@ const { audit } = require('./utils/audit');
 // ticket status x department combination, and one of every notification
 // type (read + unread) - so every screen/filter in the app has something
 // to show out of the box. Re-runnable: wipes and reseeds everything below.
+//
+// Wrapped in a function (rather than running at require-time) so it can
+// also be invoked from POST /api/admin/seed (see routes/adminSeed.routes.js)
+// for hosts without shell access (e.g. Render free tier) - `npm run seed`
+// below still works unchanged via the require.main guard at the bottom.
+function seed() {
 
 // ---- Wipe (children before parents, FK-safe - same order as tests/helpers.js resetDb()) ----
 db.exec(`
@@ -352,7 +358,7 @@ for (const u of [alice, userDonanim2, userYazilim1, userYazilim2, bob, userMuhas
   console.log(`  ${u.username.padEnd(12)} / ${u.password.padEnd(10)} / user       (id=${u.id})`);
 }
 console.log(`  pendinguser  / pending123 / user (is_verified=0 - onaysız demo hesabı)`);
-console.log(`    -> Doğrulama linki: http://localhost:5500/verify.html?token=${pendingToken}`);
+console.log(`    -> Doğrulama linki: ${require('./config').appUrl}/verify.html?token=${pendingToken}`);
 console.log('\n== Kapsam ==');
 console.log('  - Todos: status x priority tam kartezyen (6 kombinasyon) alice ve bob için');
 console.log('  - Todo lists: her kullanıcıda "Genel" + alice/bob için ek özel liste');
@@ -360,3 +366,16 @@ console.log('  - Assignments: 6 FSM durumunun hepsi (pending/accepted/completed/
 console.log('  - Tickets: departman x status tam kartezyen (4x3=12), yorumlar + bildirimler + audit log dahil');
 console.log('  - Channels: her kanalda birden fazla mesaj, biri @mention içeriyor');
 console.log('  - Notifications: her tip (ticket_comment/ticket_status/mention/assignment) hem okunmuş hem okunmamış örnekle');
+
+return {
+  userCount: 11,
+  pendingVerifyUrl: `${require('./config').appUrl}/verify.html?token=${pendingToken}`,
+};
+
+}
+
+if (require.main === module) {
+  seed();
+}
+
+module.exports = { seed };
