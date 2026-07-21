@@ -1,8 +1,26 @@
 const user = requireAuth();
 if (user) {
   document.getElementById('whoami').textContent = `${user.username} (${user.role})`;
+  if (user.role === 'admin' || user.role === 'dept_lead') {
+    document.getElementById('adminLink').classList.remove('hidden');
+  }
+  loadMyDepartment();
 }
 document.getElementById('logoutBtn').addEventListener('click', logout);
+
+// JWT payload doesn't carry department_id (see backend/src/utils/departmentAccess.js),
+// so it's fetched fresh from /auth/me and appended to the header once resolved.
+async function loadMyDepartment() {
+  try {
+    const [me, departments] = await Promise.all([api('/auth/me'), api('/departments')]);
+    const dept = departments.find((d) => d.id === me.department_id);
+    if (dept) {
+      document.getElementById('whoami').textContent = `${user.username} (${user.role}) · ${dept.name}`;
+    }
+  } catch {
+    // non-critical - header just keeps showing username/role without the department suffix
+  }
+}
 
 const todoError = document.getElementById('todoError');
 const ticketError = document.getElementById('ticketError');

@@ -8,11 +8,17 @@ const verifyEmailLabel = document.getElementById('verifyEmailLabel');
 const resendBtn = document.getElementById('resendBtn');
 const resendMsg = document.getElementById('resendMsg');
 
+// dept_lead manages their department's helpdesk queue from the same panel
+// admin uses (scoped by the backend) - only plain 'user' lands on dashboard.html.
+function landingPageFor(user) {
+  return user.role === 'admin' || user.role === 'dept_lead' ? 'admin.html' : 'dashboard.html';
+}
+
 // Already logged in? Skip straight to the right landing page.
 (function redirectIfLoggedIn() {
   const user = getUser();
   if (user) {
-    window.location.href = user.role === 'admin' ? 'admin.html' : 'dashboard.html';
+    window.location.href = landingPageFor(user);
   }
 })();
 
@@ -40,7 +46,7 @@ function showAuthError(message) {
 }
 
 function afterLogin(user) {
-  window.location.href = user.role === 'admin' ? 'admin.html' : 'dashboard.html';
+  window.location.href = landingPageFor(user);
 }
 
 loginForm.addEventListener('submit', async (e) => {

@@ -1,4 +1,9 @@
-const API_BASE = 'http://localhost:3000/api';
+// Local dev keeps frontend/backend on separate origins/ports (see README -
+// http-server on :5500, backend on :3000), so that combination needs an
+// absolute URL. Any other origin (a deployed Render service, where
+// backend/src/app.js serves this frontend itself) is same-origin with the
+// API, so a relative path works and needs no per-environment configuration.
+const API_BASE = window.location.port === '5500' ? 'http://localhost:3000/api' : '/api';
 
 function getToken() {
   return localStorage.getItem('token');
@@ -49,9 +54,9 @@ function requireAuth(redirectTo = 'index.html') {
   return getUser();
 }
 
-function requireRole(role, redirectTo = 'dashboard.html') {
+function requireAnyRole(roles, redirectTo = 'dashboard.html') {
   const user = requireAuth();
-  if (user && user.role !== role) {
+  if (user && !roles.includes(user.role)) {
     window.location.href = redirectTo;
     return null;
   }

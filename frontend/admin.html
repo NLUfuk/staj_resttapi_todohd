@@ -8,9 +8,10 @@
 </head>
 <body>
   <header>
-    <div class="brand">Admin Paneli</div>
+    <div class="brand">Yönetim Paneli</div>
     <nav>
       <span id="whoami" class="muted"></span>
+      <a href="dashboard.html">Görevlerim</a>
       <button class="link" id="logoutBtn">Çıkış</button>
     </nav>
   </header>
@@ -19,34 +20,56 @@
     <div class="tabs">
       <button id="tabUsers" class="active">Kullanıcılar</button>
       <button id="tabTodos">Tüm Todo'lar</button>
+      <button id="tabDepartments">Departmanlar</button>
       <button id="tabTickets">Helpdesk Talepleri</button>
     </div>
 
     <section id="panelUsers" class="card">
       <h2>Kullanıcılar</h2>
       <p id="usersError" class="error hidden"></p>
-      <table>
-        <thead><tr><th>ID</th><th>Kullanıcı adı</th><th>Rol</th><th>Kayıt tarihi</th><th>İşlemler</th></tr></thead>
-        <tbody id="usersList"></tbody>
-      </table>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>ID</th><th>Kullanıcı adı</th><th>Rol</th><th>Departman</th><th>Kayıt tarihi</th><th>İşlemler</th></tr></thead>
+          <tbody id="usersList"></tbody>
+        </table>
+      </div>
     </section>
 
     <section id="panelTodos" class="card hidden">
       <h2>Tüm Todo'lar</h2>
       <p id="todosError" class="error hidden"></p>
-      <table>
-        <thead><tr><th>Sahibi</th><th>Başlık</th><th>Açıklama</th><th>Durum</th><th>İşlemler</th></tr></thead>
-        <tbody id="adminTodosList"></tbody>
-      </table>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Sahibi</th><th>Başlık</th><th>Açıklama</th><th>Durum</th><th>İşlemler</th></tr></thead>
+          <tbody id="adminTodosList"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="panelDepartments" class="card hidden">
+      <h2>Departmanlar</h2>
+      <form id="departmentForm" class="inline">
+        <input id="departmentName" placeholder="Yeni departman adı" required />
+        <button type="submit">Ekle</button>
+      </form>
+      <p id="departmentsError" class="error hidden"></p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Ad</th><th>Slug</th><th>İşlemler</th></tr></thead>
+          <tbody id="departmentsList"></tbody>
+        </table>
+      </div>
     </section>
 
     <section id="panelTickets" class="card hidden">
       <h2>Helpdesk Talepleri</h2>
       <p id="ticketsError" class="error hidden"></p>
-      <table>
-        <thead><tr><th>Gönderen</th><th>Konu</th><th>Mesaj</th><th>Durum</th><th>Yanıt / Güncelle</th><th></th></tr></thead>
-        <tbody id="adminTicketsList"></tbody>
-      </table>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Gönderen</th><th>Konu</th><th>Mesaj</th><th>Durum</th><th>Yanıt / Güncelle</th><th></th></tr></thead>
+          <tbody id="adminTicketsList"></tbody>
+        </table>
+      </div>
     </section>
   </main>
 

@@ -11,6 +11,7 @@
     <div class="brand">Todo + Helpdesk</div>
     <nav>
       <span id="whoami" class="muted"></span>
+      <a href="admin.html" id="adminLink" class="hidden">Yönetim Paneli</a>
       <button class="link" id="logoutBtn">Çıkış</button>
     </nav>
   </header>
@@ -32,34 +33,40 @@
         <button type="submit">Ekle</button>
       </form>
       <p id="todoError" class="error hidden"></p>
-      <table>
-        <thead>
-          <tr><th>Başlık</th><th>Açıklama</th><th>Durum</th><th>İşlemler</th></tr>
-        </thead>
-        <tbody id="todoList"></tbody>
-      </table>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Başlık</th><th>Açıklama</th><th>Durum</th><th>İşlemler</th></tr>
+          </thead>
+          <tbody id="todoList"></tbody>
+        </table>
+      </div>
     </section>
 
     <section class="card">
       <h2>Gelen Görevler <span class="muted">(bana atananlar)</span></h2>
       <p id="incomingError" class="error hidden"></p>
-      <table>
-        <thead>
-          <tr><th>Görev</th><th>Atayan</th><th>Durum</th><th>İşlemler</th></tr>
-        </thead>
-        <tbody id="incomingList"></tbody>
-      </table>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Görev</th><th>Atayan</th><th>Durum</th><th>İşlemler</th></tr>
+          </thead>
+          <tbody id="incomingList"></tbody>
+        </table>
+      </div>
     </section>
 
     <section class="card">
       <h2>Gönderdiğim Görevler <span class="muted">(atadıklarım)</span></h2>
       <p id="outgoingError" class="error hidden"></p>
-      <table>
-        <thead>
-          <tr><th>Görev</th><th>Atanan</th><th>Durum</th><th>İşlemler</th></tr>
-        </thead>
-        <tbody id="outgoingList"></tbody>
-      </table>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Görev</th><th>Atanan</th><th>Durum</th><th>İşlemler</th></tr>
+          </thead>
+          <tbody id="outgoingList"></tbody>
+        </table>
+      </div>
     </section>
 
     <section class="card">
@@ -73,12 +80,14 @@
         <button type="submit">Talep Gönder</button>
       </form>
       <p id="ticketError" class="error hidden"></p>
-      <table>
-        <thead>
-          <tr><th>Konu</th><th>Mesaj</th><th>Durum</th><th>Admin Yanıtı</th><th>İşlemler</th></tr>
-        </thead>
-        <tbody id="ticketList"></tbody>
-      </table>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Konu</th><th>Mesaj</th><th>Durum</th><th>Admin Yanıtı</th><th>İşlemler</th></tr>
+          </thead>
+          <tbody id="ticketList"></tbody>
+        </table>
+      </div>
     </section>
   </main>
 

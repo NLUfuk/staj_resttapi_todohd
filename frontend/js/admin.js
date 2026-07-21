@@ -1,8 +1,26 @@
-const user = requireRole('admin');
+const user = requireAnyRole(['admin', 'dept_lead']);
 if (user) {
   document.getElementById('whoami').textContent = `${user.username} (${user.role})`;
+  loadMyDepartment();
 }
 document.getElementById('logoutBtn').addEventListener('click', logout);
+
+const VALID_ROLES = ['user', 'dept_lead', 'admin'];
+
+// JWT payload doesn't carry department_id, so it's resolved from /auth/me
+// once on load and appended to the header (mainly useful for dept_lead, to
+// confirm which department's queue they're scoped to).
+async function loadMyDepartment() {
+  try {
+    const [me, departments] = await Promise.all([api('/auth/me'), api('/departments')]);
+    const dept = departments.find((d) => d.id === me.department_id);
+    if (dept) {
+      document.getElementById('whoami').textContent = `${user.username} (${user.role}) · ${dept.name}`;
+    }
+  } catch {
+    // non-critical - header just keeps showing username/role without the department suffix
+  }
+}
 
 function escapeHtml(str) {
   const div = document.createElement('div');
@@ -18,10 +36,14 @@ function clearError(el) {
 }
 
 // ---- Tabs ----
+// dept_lead only manages their own department's helpdesk queue - the
+// backend already blocks them from /admin/users, /admin/todos and
+// /api/departments writes, so those tabs are hidden rather than shown and 403ing.
 const tabs = {
-  users: { btn: document.getElementById('tabUsers'), panel: document.getElementById('panelUsers'), load: loadUsers },
-  todos: { btn: document.getElementById('tabTodos'), panel: document.getElementById('panelTodos'), load: loadAdminTodos },
-  tickets: { btn: document.getElementById('tabTickets'), panel: document.getElementById('panelTickets'), load: loadAdminTickets },
+  users: { btn: document.getElementById('tabUsers'), panel: document.getElementById('panelUsers'), load: loadUsers, adminOnly: true },
+  todos: { btn: document.getElementById('tabTodos'), panel: document.getElementById('panelTodos'), load: loadAdminTodos, adminOnly: true },
+  departments: { btn: document.getElementById('tabDepartments'), panel: document.getElementById('panelDepartments'), load: loadDepartments, adminOnly: true },
+  tickets: { btn: document.getElementById('tabTickets'), panel: document.getElementById('panelTickets'), load: loadAdminTickets, adminOnly: false },
 };
 
 function activateTab(name) {
@@ -34,13 +56,87 @@ function activateTab(name) {
 
 Object.entries(tabs).forEach(([key, t]) => t.btn.addEventListener('click', () => activateTab(key)));
 
+if (user && user.role === 'dept_lead') {
+  Object.values(tabs)
+    .filter((t) => t.adminOnly)
+    .forEach((t) => t.btn.classList.add('hidden'));
+  activateTab('tickets');
+}
+
+// ---- Departments (shared cache: users table needs it for the department picker) ----
+let departmentsCache = [];
+
+async function fetchDepartments() {
+  departmentsCache = await api('/departments');
+  return departmentsCache;
+}
+
+const departmentsError = document.getElementById('departmentsError');
+
+async function loadDepartments() {
+  clearError(departmentsError);
+  try {
+    await fetchDepartments();
+    const tbody = document.getElementById('departmentsList');
+    tbody.innerHTML = departmentsCache
+      .map(
+        (d) => `
+      <tr>
+        <td>${escapeHtml(d.name)}</td>
+        <td class="muted">${escapeHtml(d.slug)}</td>
+        <td class="row-actions">
+          <button class="secondary" data-action="rename" data-id="${d.id}" data-name="${escapeHtml(d.name)}">Yeniden adlandır</button>
+          <button class="danger" data-action="delete" data-id="${d.id}">Sil</button>
+        </td>
+      </tr>`
+      )
+      .join('');
+  } catch (err) {
+    showError(departmentsError, err.message);
+  }
+}
+
+document.getElementById('departmentForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clearError(departmentsError);
+  const input = document.getElementById('departmentName');
+  const name = input.value.trim();
+  if (!name) return;
+  try {
+    await api('/departments', { method: 'POST', body: { name } });
+    input.value = '';
+    await loadDepartments();
+  } catch (err) {
+    showError(departmentsError, err.message);
+  }
+});
+
+document.getElementById('departmentsList').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  try {
+    if (btn.dataset.action === 'delete') {
+      if (!confirm('Bu departman silinsin mi? (üyesi veya talebi varsa reddedilir)')) return;
+      await api(`/departments/${id}`, { method: 'DELETE' });
+    } else if (btn.dataset.action === 'rename') {
+      const newName = prompt('Yeni departman adı:', btn.dataset.name);
+      if (newName === null || newName.trim() === '') return;
+      await api(`/departments/${id}`, { method: 'PATCH', body: { name: newName.trim() } });
+    }
+    await loadDepartments();
+  } catch (err) {
+    showError(departmentsError, err.message);
+  }
+});
+
 // ---- Users ----
 const usersError = document.getElementById('usersError');
 
 async function loadUsers() {
   clearError(usersError);
   try {
-    const users = await api('/admin/users');
+    const [users] = await Promise.all([api('/admin/users'), fetchDepartments()]);
     const tbody = document.getElementById('usersList');
     tbody.innerHTML = users
       .map(
@@ -48,12 +144,19 @@ async function loadUsers() {
       <tr>
         <td>${u.id}</td>
         <td>${escapeHtml(u.username)}</td>
-        <td><span class="badge ${u.role}">${u.role}</span></td>
+        <td>
+          <select data-role-select data-id="${u.id}">
+            ${VALID_ROLES.map((r) => `<option value="${r}" ${r === u.role ? 'selected' : ''}>${r}</option>`).join('')}
+          </select>
+        </td>
+        <td>
+          <select data-dept-select data-id="${u.id}">
+            ${departmentsCache.map((d) => `<option value="${d.id}" ${d.id === u.department_id ? 'selected' : ''}>${escapeHtml(d.name)}</option>`).join('')}
+          </select>
+        </td>
         <td class="muted">${escapeHtml(u.created_at)}</td>
         <td class="row-actions">
-          <button class="secondary" data-action="toggleRole" data-id="${u.id}" data-role="${u.role}">
-            ${u.role === 'user' ? 'Admin yap' : 'Kullanıcı yap'}
-          </button>
+          <button class="secondary" data-action="save" data-id="${u.id}">Kaydet</button>
           <button class="danger" data-action="delete" data-id="${u.id}" ${u.id === user.id ? 'disabled' : ''}>Sil</button>
         </td>
       </tr>`
@@ -68,13 +171,15 @@ document.getElementById('usersList').addEventListener('click', async (e) => {
   const btn = e.target.closest('button');
   if (!btn) return;
   const id = btn.dataset.id;
+  const row = btn.closest('tr');
   try {
     if (btn.dataset.action === 'delete') {
       if (!confirm('Bu kullanıcı silinsin mi?')) return;
       await api(`/admin/users/${id}`, { method: 'DELETE' });
-    } else if (btn.dataset.action === 'toggleRole') {
-      const newRole = btn.dataset.role === 'user' ? 'admin' : 'user';
-      await api(`/admin/users/${id}`, { method: 'PATCH', body: { role: newRole } });
+    } else if (btn.dataset.action === 'save') {
+      const role = row.querySelector('[data-role-select]').value;
+      const department_id = Number(row.querySelector('[data-dept-select]').value);
+      await api(`/admin/users/${id}`, { method: 'PATCH', body: { role, department_id } });
     }
     await loadUsers();
   } catch (err) {
@@ -123,7 +228,7 @@ document.getElementById('adminTodosList').addEventListener('click', async (e) =>
   }
 });
 
-// ---- Tickets (helpdesk queue) ----
+// ---- Tickets (helpdesk queue - admin sees all, dept_lead scoped by backend) ----
 const ticketsError = document.getElementById('ticketsError');
 const TICKET_STATUSES = ['open', 'in_progress', 'closed'];
 
@@ -153,7 +258,7 @@ async function loadAdminTickets() {
             <button type="submit">Kaydet</button>
           </form>
         </td>
-        <td><button class="danger" data-action="delete" data-id="${t.id}">Sil</button></td>
+        <td>${user.role === 'admin' ? `<button class="danger" data-action="delete" data-id="${t.id}">Sil</button>` : ''}</td>
       </tr>`
       )
       .join('');
@@ -188,6 +293,6 @@ document.getElementById('adminTicketsList').addEventListener('click', async (e) 
   }
 });
 
-if (user) {
+if (user && user.role === 'admin') {
   loadUsers();
 }

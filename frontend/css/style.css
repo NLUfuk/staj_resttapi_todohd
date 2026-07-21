@@ -15,9 +15,13 @@ header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 header .brand { font-weight: 600; font-size: 1.1rem; }
+
+header nav { display: flex; align-items: center; flex-wrap: wrap; }
 
 header nav a, header button.link {
   color: #d1d5db;
@@ -27,6 +31,7 @@ header nav a, header button.link {
   border: none;
   cursor: pointer;
   font-size: 0.95rem;
+  white-space: nowrap;
 }
 
 header nav a.active, header nav a:hover, header button.link:hover { color: white; }
@@ -81,9 +86,15 @@ button.danger:hover { background: #b91c1c; }
 button.secondary { background: #6b7280; }
 button.secondary:hover { background: #4b5563; }
 
+/* Tables can end up wider than their card (long messages, multi-button
+   action cells) - scope the horizontal scroll to the table itself instead
+   of letting it blow out the page (main has no overflow guard of its own). */
+.table-wrap { overflow-x: auto; max-width: 100%; }
+
 table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
-th { color: #6b7280; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; }
+td { max-width: 320px; overflow-wrap: break-word; }
+th { color: #6b7280; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; white-space: nowrap; }
 
 .badge {
   display: inline-block;
@@ -97,6 +108,7 @@ th { color: #6b7280; font-weight: 600; font-size: 0.8rem; text-transform: upperc
 .badge.in_progress { background: #dbeafe; color: #1e40af; }
 .badge.admin { background: #ede9fe; color: #5b21b6; }
 .badge.user { background: #e5e7eb; color: #374151; }
+.badge.dept_lead { background: #dbeafe; color: #1e3a8a; }
 
 .error { color: #dc2626; font-size: 0.9rem; margin: 8px 0; }
 .muted { color: #6b7280; font-size: 0.85rem; }
@@ -107,7 +119,7 @@ th { color: #6b7280; font-weight: 600; font-size: 0.8rem; text-transform: upperc
   margin: 80px auto;
 }
 
-.tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+.tabs { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
 .tabs button {
   background: #e5e7eb;
   color: #1f2937;
@@ -126,3 +138,11 @@ th { color: #6b7280; font-weight: 600; font-size: 0.8rem; text-transform: upperc
 .timeline li { padding: 6px 0; border-bottom: 1px dashed #e5e7eb; }
 .timeline li:last-child { border-bottom: none; }
 .timeline .tl-meta { color: #6b7280; }
+
+@media (max-width: 600px) {
+  main { margin: 12px auto; padding: 0 10px; }
+  .card { padding: 14px; }
+  header { padding: 12px 16px; }
+  header nav a, header button.link { margin-left: 10px; }
+  td { max-width: 180px; }
+}

@@ -1,6 +1,6 @@
 # PROGRESS
 
-Son güncelleme: 2026-07-20
+Son güncelleme: 2026-07-21
 
 ## Durum Özeti
 
@@ -203,6 +203,109 @@ Kullanıcı talebi üzerine `backend/src/seed.js` tamamen yeniden yazıldı - ar
 ### Faz F — Deploy Dokümantasyonu ✅
 
 - [x] `DEPLOY_CHECKLIST.md` (YENİ) — Railway/Render kalıcı disk (volume) gereksinimi, zorunlu env değişkenleri (`JWT_SECRET`, `CORS_ORIGINS`, `MAIL_DRIVER`, `RESEND_API_KEY`, `APP_URL`), deploy öncesi doğrulama listesi. Gerçek bir deploy bu ortamda yapılmadı (altyapı erişimi yok) - doküman, kullanıcının kendi hesabında uygulaması için.
+
+## Genişleme 3: Departman/Rol Yönetim UI'ı + Gerçek Mail + Taşma Düzeltmeleri (2026-07-21)
+
+Kullanıcı isteği: her kullanıcının bir departmanı olması, admin + "hizmeti kontrol eden" bir
+rol (dept_lead - zaten backend'de vardı ama frontend'i yoktu), e-posta ile kayıt/onay
+(zaten vardı) gerçek bir mail kutusuna (ufukf1998@gmail.com) gitmesi, ve arayüzün
+kutuları taşırmayan minimalist bir hale getirilmesi.
+
+Araştırma (Trust Code Over Docs ilkesiyle) şunu ortaya çıkardı: departman/rol/e-posta
+altyapısının tamamı backend'de zaten mevcuttu (bkz. yukarıdaki "Genişleme Faz 1/6" ve
+"Genişleme 2 Faz D"), ama iki gerçek eksik vardı:
+1. Mail sürücüsü `console` modundaydı (gerçek mail gitmiyordu).
+2. `dept_lead` rolünün ve departman yönetiminin **hiçbir frontend arayüzü yoktu** -
+   `admin.html` sadece `role==='admin'` kabul ediyordu, dept_lead kullanıcılar login
+   sonrası `dashboard.html`'e düşüyor ve departmanlarının helpdesk kuyruğunu yönetecek
+   hiçbir ekran bulamıyordu (backend `requireRole('admin','dept_lead')` ile bunu
+   destekliyordu ama frontend hiç kullanmıyordu).
+
+- [x] **Gerçek mail entegrasyonu:** Kullanıcıyla birlikte `resend.com`'da (Google OAuth ile,
+      şifre girişi gerektirmeden) hesap açıldı, API key alındı. `backend/.env` (git'e
+      girmiyor, `.gitignore`'da zaten vardı) - `MAIL_DRIVER=resend`, `RESEND_API_KEY`,
+      `RESEND_FROM=onboarding@resend.dev` (Resend sandbox - yalnızca hesap sahibinin
+      kendi doğrulanmış e-postasına gönderime izin veriyor, ufukf1998@gmail.com bu
+      hesabın sahibi olduğu için tam uyumlu), `APP_URL`. Backend yeniden başlatıldı,
+      `POST /api/auth/register` ile gerçek bir onay maili gönderildi ve kullanıcı
+      tarafından gelen kutusunda teyit edildi. Test kaydı temizlemek için `npm run seed`
+      tekrar çalıştırıldı.
+- [x] `frontend/js/api.js`: `requireRole(role)` → `requireAnyRole(roles)` (tek kullanım
+      yeri `admin.html` artık hem admin hem dept_lead'i kabul etmeli)
+- [x] `frontend/js/auth.js`: login sonrası yönlendirme artık dept_lead'i de `admin.html`'e
+      gönderiyor (`landingPageFor()` ortak fonksiyonu, hem `redirectIfLoggedIn` hem
+      `afterLogin` bunu kullanıyor)
+- [x] `frontend/admin.html` + `js/admin.js` yeniden yapılandırıldı:
+      - Yeni "Departmanlar" sekmesi (admin-only): departman ekleme/yeniden adlandırma/silme,
+        `GET/POST/PATCH/DELETE /api/departments` ile
+      - "Kullanıcılar" tablosuna Departman kolonu eklendi; Rol kolonu artık ikili
+        toggle yerine 3 değerli (`user`/`dept_lead`/`admin`) `<select>`, rol+departman
+        birlikte tek "Kaydet" ile `PATCH /api/admin/users/:id` çağırıyor
+      - dept_lead login olduğunda admin-only sekmeler (Kullanıcılar/Todo/Departmanlar)
+        gizleniyor, sadece "Helpdesk Talepleri" görünüyor ve otomatik açılıyor - backend
+        zaten departmana göre filtrelediği için ek bir frontend filtresi gerekmedi
+      - Ticket tablosundaki "Sil" butonu sadece admin'e gösteriliyor (dept_lead'in
+        kapsamı durum değiştirme/yanıtlama, silme değil - backend'deki kısıtla eşleşiyor)
+      - Header'a "Görevlerim" linki (dashboard.html'e) ve departman adı eklendi
+        (`GET /auth/me` + `GET /departments` ile JWT'nin taşımadığı departman bilgisi
+        sayfa yüklenince ayrıca çekiliyor)
+      - `dashboard.html`de simetrik olarak admin/dept_lead için "Yönetim Paneli" linki
+        ve departman adı eklendi
+- [x] Gerçek tarayıcıda (claude-in-chrome) uçtan uca doğrulandı: admin girişiyle
+      departman ekleme/silme, kullanıcı departman+rol değişikliği kaydetme; ardından
+      `lead_muhasebe` girişiyle sadece Helpdesk Talepleri sekmesinin görünmesi ve
+      talep listesinin gerçekten sadece Muhasebe departmanına (3 kayıt) scope'landığı
+      teyit edildi
+- [x] **CSS taşma düzeltmesi** (`frontend/css/style.css`): tüm tablolar `.table-wrap`
+      (`overflow-x:auto`) içine alındı - önceden geniş içerik (uzun ticket mesajları,
+      çok butonlu işlem hücreleri) `main`'in `max-width`'ini aşarak sayfayı yatay
+      kaydırıyordu, artık taşma tablonun kendi kutusunda kalıyor. `td { max-width:320px;
+      overflow-wrap:break-word }`, header `flex-wrap`, `.tabs` `flex-wrap`, 600px altı
+      için medya sorgusu (daha dar padding, `td { max-width:180px }`) eklendi.
+      `.badge.dept_lead` rozet rengi eklendi. Doğrulama gerçek bir viewport resize ile
+      değil (bu ortamda `resize_window` aracı pencere boyutunu gerçekten değiştirmiyor -
+      bilinen bir araç kısıtı, aşağıya not düşüldü), `main`'i JS ile 380px'e sıkıştırıp
+      `.table-wrap`'in kendi genişliğinde sabit kalıp içeriği (525px) kendi içinde
+      kaydırdığı doğrulanarak yapıldı.
+- [x] `npm test` → 20 suite, 157/157 geçti (backend kodu değişmedi, sadece `.env` eklendi
+      ve frontend güncellendi - regresyon kontrolü içindi)
+- [x] `DEPLOY_CHECKLIST.md` güncellendi: Resend sandbox `RESEND_FROM` kısıtı ve yerel
+      doğrulama notu eklendi
+
+## Genişleme 4: Gmail SMTP Sürücüsü (2026-07-21)
+
+Genişleme 3'teki bilinen sorun #11 canlıda hemen ortaya çıktı: kullanıcı arkadaşının
+e-postasına kayıt denedi, Resend sandbox kısıtı yüzünden 403 ile reddedildi
+(`[mailer] Resend API error 403 ... You can only send testing emails to your own
+email address`). Kullanıcının özel bir domain'i olmadığından Gmail SMTP'ye geçildi.
+
+- [x] `npm install nodemailer` (backend)
+- [x] `backend/src/utils/mailer.js` - üçüncü sürücü `gmail`: `nodemailer.createTransport({service:'gmail', auth:{user,pass}})`,
+      transporter lazy (ilk gönderimde) oluşturuluyor ki eksik env sadece gönderimi
+      bozsun, modülü `require` edeni değil. `GMAIL_USER`/`GMAIL_APP_PASSWORD` env
+      değişkenleriyle yapılandırılıyor.
+- [x] Kullanıcıyla birlikte Google Hesap ayarlarında: 2 Adımlı Doğrulama açıldı
+      (önceden kapalıydı - Uygulama Şifreleri özelliği 2FA olmadan hiç görünmüyor),
+      ardından Uygulama Şifreleri sayfasından "Todo Helpdesk" adıyla 16 haneli bir
+      uygulama şifresi oluşturuldu. Şifre normal Google şifresi değil, hesaba tam
+      erişimli ayrı bir kimlik bilgisi - `backend/.env`'e yazıldı (git'e girmiyor).
+- [x] `MAIL_DRIVER=gmail` olarak `.env` güncellendi (Resend değişkenleri yedek olarak
+      dosyada bırakıldı, sürücü değiştirmek tek satırlık env değişikliği), backend
+      yeniden başlatıldı, gerçek bir kayıtla (`gmailtest1`) uçtan uca doğrulandı -
+      hata loglanmadı, kullanıcı mailin geldiğini teyit etti. Test kaydı `npm run seed`
+      ile temizlendi.
+- [x] `npm test` → 20 suite, 157/157 geçti (mailer.js'e üçüncü sürücü eklendi, mevcut
+      iki sürücünün davranışı değişmedi - regresyon kontrolü içindi)
+- [x] `DEPLOY_CHECKLIST.md` güncellendi: `GMAIL_USER`/`GMAIL_APP_PASSWORD` env satırı
+      eklendi
+
+## Bilinen Sorunlar / Teknik Borç (ek)
+
+| # | Açıklama | Öncelik |
+|---|---|---|
+| 10 | Bu oturumda `claude-in-chrome`'un `resize_window` aracı pencereyi gerçekten yeniden boyutlandırmadı (`document.documentElement.clientWidth` sabit kaldı) - gerçek mobil/dar viewport testi bu yüzden JS ile `main` genişliğini geçici olarak sıkıştırarak simüle edildi, gerçek bir tarayıcı pencere yeniden boyutlandırması ile ayrıca doğrulanmalı | Düşük (CSS mantığı doğrulandı, sadece araç kısıtı) |
+| ~~11~~ | ~~Resend sandbox kısıtı yüzünden başka alıcılara mail gitmiyordu~~ - Genişleme 4'te `MAIL_DRIVER=gmail`'e geçilerek kapandı | Kapandı |
+| 12 | Gmail SMTP günlük gönderim limiti düşük (kişisel hesaplar için ~500/gün) - kullanıcı sayısı artarsa Resend'e (domain doğrulamasıyla) veya özel bir transactional mail sağlayıcısına geçiş gerekebilir | Düşük (şu ölçekte sorun değil) |
 
 ## Ortam Gereksinimleri
 

@@ -1,3 +1,4 @@
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -45,6 +46,14 @@ const loginLimiter = rateLimit({
 app.use('/api/auth/login', loginLimiter);
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
+
+// Serves the static frontend from the same origin as the API. Locally the
+// documented workflow still runs frontend/backend as two separate dev
+// servers (see README - http-server on :5500 + this on :3000), but a single
+// deployed service (Render free tier, no second static site needed) needs
+// them on one origin so relative fetch('/api/...') calls and the emailed
+// verification link both resolve without CORS or a hardcoded backend URL.
+app.use(express.static(path.join(__dirname, '..', '..', 'frontend')));
 
 // Interactive API docs: http://localhost:3000/api-docs
 // Swagger UI's bundle relies on inline scripts/styles that the default
