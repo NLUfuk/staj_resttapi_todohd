@@ -7,89 +7,95 @@
 <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <header>
+  <header class="topbar">
     <div class="brand">Todo + Helpdesk</div>
     <nav>
       <span id="whoami" class="muted"></span>
-      <a href="admin.html" id="adminLink" class="hidden">Yönetim Paneli</a>
       <button class="link" id="logoutBtn">Çıkış</button>
     </nav>
   </header>
 
-  <main>
-    <section class="card">
-      <h2>Todo'larım</h2>
-      <form id="listForm" class="inline">
-        <label for="listSelect" class="muted" style="align-self:center;margin:0;">Liste:</label>
-        <select id="listSelect"></select>
-        <input id="newListName" placeholder="Yeni liste adı" />
-        <button type="submit">Liste Oluştur</button>
-      </form>
-      <p id="listError" class="error hidden"></p>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <button class="nav-item active" type="button">Görevlerim</button>
+      <a href="admin.html" id="adminLink" class="nav-item hidden">Yönetim Paneli</a>
+    </aside>
 
-      <form id="todoForm" class="inline">
-        <input id="todoTitle" placeholder="Başlık" required />
-        <input id="todoDescription" placeholder="Açıklama (opsiyonel)" />
-        <button type="submit">Ekle</button>
-      </form>
-      <p id="todoError" class="error hidden"></p>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr><th>Başlık</th><th>Açıklama</th><th>Durum</th><th>İşlemler</th></tr>
-          </thead>
-          <tbody id="todoList"></tbody>
-        </table>
-      </div>
-    </section>
+    <main class="content">
+      <section class="card">
+        <h2>Todo'larım</h2>
+        <form id="listForm" class="inline">
+          <label for="listSelect" class="muted" style="align-self:center;margin:0;">Liste:</label>
+          <select id="listSelect"></select>
+          <input id="newListName" placeholder="Yeni liste adı" />
+          <button type="submit">Liste Oluştur</button>
+        </form>
+        <p id="listError" class="error hidden"></p>
 
-    <section class="card">
-      <h2>Gelen Görevler <span class="muted">(bana atananlar)</span></h2>
-      <p id="incomingError" class="error hidden"></p>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr><th>Görev</th><th>Atayan</th><th>Durum</th><th>İşlemler</th></tr>
-          </thead>
-          <tbody id="incomingList"></tbody>
-        </table>
-      </div>
-    </section>
+        <form id="todoForm" class="inline">
+          <input id="todoTitle" placeholder="Başlık" required />
+          <input id="todoDescription" placeholder="Açıklama (opsiyonel)" />
+          <button type="submit">Ekle</button>
+        </form>
+        <p id="todoError" class="error hidden"></p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Başlık</th><th>Açıklama</th><th>Durum</th><th>İşlemler</th></tr>
+            </thead>
+            <tbody id="todoList"></tbody>
+          </table>
+        </div>
+      </section>
 
-    <section class="card">
-      <h2>Gönderdiğim Görevler <span class="muted">(atadıklarım)</span></h2>
-      <p id="outgoingError" class="error hidden"></p>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr><th>Görev</th><th>Atanan</th><th>Durum</th><th>İşlemler</th></tr>
-          </thead>
-          <tbody id="outgoingList"></tbody>
-        </table>
-      </div>
-    </section>
+      <section class="card">
+        <h2>Gelen Görevler <span class="muted">(bana atananlar)</span></h2>
+        <p id="incomingError" class="error hidden"></p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Görev</th><th>Atayan</th><th>Durum</th><th>İşlemler</th></tr>
+            </thead>
+            <tbody id="incomingList"></tbody>
+          </table>
+        </div>
+      </section>
 
-    <section class="card">
-      <h2>Helpdesk Taleplerim</h2>
-      <form id="ticketForm" class="inline">
-        <input id="ticketSubject" placeholder="Konu" required />
-        <input id="ticketMessage" placeholder="Mesaj" required />
-        <select id="ticketTodoId">
-          <option value="">(Todo'ya bağlama)</option>
-        </select>
-        <button type="submit">Talep Gönder</button>
-      </form>
-      <p id="ticketError" class="error hidden"></p>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr><th>Konu</th><th>Mesaj</th><th>Durum</th><th>Admin Yanıtı</th><th>İşlemler</th></tr>
-          </thead>
-          <tbody id="ticketList"></tbody>
-        </table>
-      </div>
-    </section>
-  </main>
+      <section class="card">
+        <h2>Gönderdiğim Görevler <span class="muted">(atadıklarım)</span></h2>
+        <p id="outgoingError" class="error hidden"></p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Görev</th><th>Atanan</th><th>Durum</th><th>İşlemler</th></tr>
+            </thead>
+            <tbody id="outgoingList"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Helpdesk Taleplerim</h2>
+        <form id="ticketForm" class="inline">
+          <input id="ticketSubject" placeholder="Konu" required />
+          <input id="ticketMessage" placeholder="Mesaj" required />
+          <select id="ticketTodoId">
+            <option value="">(Todo'ya bağlama)</option>
+          </select>
+          <button type="submit">Talep Gönder</button>
+        </form>
+        <p id="ticketError" class="error hidden"></p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Konu</th><th>Mesaj</th><th>Durum</th><th>Admin Yanıtı</th><th>İşlemler</th></tr>
+            </thead>
+            <tbody id="ticketList"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
 
   <script src="js/api.js"></script>
   <script src="js/dashboard.js"></script>

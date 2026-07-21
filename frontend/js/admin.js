@@ -1,6 +1,9 @@
 const user = requireAnyRole(['admin', 'dept_lead']);
 if (user) {
-  document.getElementById('whoami').textContent = `${user.username} (${user.role})`;
+  document.getElementById('whoami').textContent = user.username;
+  if (user.role === 'dept_lead') {
+    document.getElementById('roleBadge').innerHTML = '<span class="badge dept_lead">Departman Yöneticisi</span>';
+  }
   loadMyDepartment();
 }
 document.getElementById('logoutBtn').addEventListener('click', logout);
@@ -15,7 +18,7 @@ async function loadMyDepartment() {
     const [me, departments] = await Promise.all([api('/auth/me'), api('/departments')]);
     const dept = departments.find((d) => d.id === me.department_id);
     if (dept) {
-      document.getElementById('whoami').textContent = `${user.username} (${user.role}) · ${dept.name}`;
+      document.getElementById('whoami').textContent = `${user.username} · ${dept.name}`;
     }
   } catch {
     // non-critical - header just keeps showing username/role without the department suffix
@@ -60,7 +63,6 @@ if (user && user.role === 'dept_lead') {
   Object.values(tabs)
     .filter((t) => t.adminOnly)
     .forEach((t) => t.btn.classList.add('hidden'));
-  activateTab('tickets');
 }
 
 // ---- Departments (shared cache: users table needs it for the department picker) ----
@@ -293,6 +295,14 @@ document.getElementById('adminTicketsList').addEventListener('click', async (e) 
   }
 });
 
+// Deferred to the end of the file (not run inline where the tabs/role
+// checks above happen) because activateTab() synchronously calls the tab's
+// load() function, which references consts (e.g. ticketsError) declared
+// further down the file - calling it any earlier throws a temporal-dead-zone
+// ReferenceError and silently leaves the tab empty (caught nowhere, since
+// this file has no top-level try/catch).
 if (user && user.role === 'admin') {
   loadUsers();
+} else if (user && user.role === 'dept_lead') {
+  activateTab('tickets');
 }

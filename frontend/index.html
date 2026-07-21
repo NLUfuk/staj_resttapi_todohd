@@ -15,25 +15,30 @@
       </div>
 
       <form id="loginForm">
-        <label for="loginUsername">Kullanıcı adı</label>
-        <input id="loginUsername" required autocomplete="username" />
-        <br /><br />
-        <label for="loginPassword">Şifre</label>
-        <input id="loginPassword" type="password" required autocomplete="current-password" />
-        <br /><br />
+        <div class="field">
+          <label for="loginUsername">Kullanıcı adı</label>
+          <input id="loginUsername" required autocomplete="username" />
+        </div>
+        <div class="field">
+          <label for="loginPassword">Şifre</label>
+          <input id="loginPassword" type="password" required autocomplete="current-password" />
+        </div>
         <button type="submit">Giriş Yap</button>
       </form>
 
       <form id="registerForm" class="hidden">
-        <label for="registerUsername">Kullanıcı adı (min 3 karakter)</label>
-        <input id="registerUsername" required minlength="3" />
-        <br /><br />
-        <label for="registerEmail">E-posta</label>
-        <input id="registerEmail" type="email" required />
-        <br /><br />
-        <label for="registerPassword">Şifre (min 6 karakter)</label>
-        <input id="registerPassword" type="password" required minlength="6" />
-        <br /><br />
+        <div class="field">
+          <label for="registerUsername">Kullanıcı adı (min 3 karakter)</label>
+          <input id="registerUsername" required minlength="3" />
+        </div>
+        <div class="field">
+          <label for="registerEmail">E-posta</label>
+          <input id="registerEmail" type="email" required />
+        </div>
+        <div class="field">
+          <label for="registerPassword">Şifre (min 6 karakter)</label>
+          <input id="registerPassword" type="password" required minlength="6" />
+        </div>
         <button type="submit">Kayıt Ol</button>
       </form>
 
